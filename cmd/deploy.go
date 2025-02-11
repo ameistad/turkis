@@ -73,7 +73,7 @@ func deployApp(appCfg *config.AppConfig) error {
 	}
 
 	// Stop any old containers so that Traefik routes traffic only to the new container.
-	if err := stopOldContainers(appCfg.Name, containerID); err != nil {
+	if err := stopOldContainers(appCfg.Name, containerID, deploymentID); err != nil {
 		return fmt.Errorf("failed to stop old containers: %w", err)
 	}
 
@@ -197,7 +197,7 @@ func healthCheckContainer(containerID string) error {
 			time.Sleep(interval)
 			continue
 		}
-		fmt.Printf("Container %s health status: %s\n", containerID, health.Status)
+		fmt.Printf("Container %s status: %s\n", containerID, health.Status)
 		if health.Status == "healthy" {
 			return nil
 		}
@@ -207,8 +207,9 @@ func healthCheckContainer(containerID string) error {
 }
 
 // stopOldContainers stops any running container for the app (identified by the "turkis.app" label),
-// except for the container with the given container ID. It uses a prefix match to handle Docker's shortened IDs.
-func stopOldContainers(appName, newContainerID string) error {
+// except for the current container which is identified using both the container ID and deployment label.
+// This extra check helps avoid stopping containers that might belong to a concurrent deployment.
+func stopOldContainers(appName, newContainerID, newDeploymentID string) error {
 	out, err := exec.Command("docker", "ps", "--filter", fmt.Sprintf("label=turkis.app=%s", appName), "--format", "{{.ID}}").Output()
 	if err != nil {
 		return err
@@ -216,12 +217,22 @@ func stopOldContainers(appName, newContainerID string) error {
 	containers := strings.Split(strings.TrimSpace(string(out)), "\n")
 	for _, id := range containers {
 		// Skip if the container ID is empty or matches the new container.
-		if id == "" || strings.HasPrefix(newContainerID, id) {
+		if id == "" || strings.HasPrefix(newContainerID, id) || strings.HasPrefix(id, newContainerID) {
 			continue
 		}
-		fmt.Printf("Stopping old container: %s\n", id)
-		if err := exec.Command("docker", "stop", id).Run(); err != nil {
-			fmt.Printf("Error stopping container %s: %v\n", id, err)
+
+		// Inspect the container's deployment label.
+		labelOut, err := exec.Command("docker", "inspect", "--format", "{{ index .Config.Labels \"turkis.deployment\" }}", id).Output()
+		if err != nil {
+			fmt.Printf("Error reading deployment label for container %s: %v. Skipping container...\n", id, err)
+			continue
+		}
+		containerDeploymentID := strings.TrimSpace(string(labelOut))
+		if containerDeploymentID != newDeploymentID {
+			fmt.Printf("Stopping old container: %s (deployment: %s)\n", id, containerDeploymentID)
+			if err := exec.Command("docker", "stop", id).Run(); err != nil {
+				fmt.Printf("Error stopping container %s: %v\n", id, err)
+			}
 		}
 	}
 	return nil
