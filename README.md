@@ -7,7 +7,7 @@ Turkis is cyan in norwegian, which is what you get when you mix blue and green. 
 
 ## Build for linux
 ```bash 
-GOOS=linux GOARCH=amd64 go build -o turkis
+GOOS=linux GOARCH=amd64 go build -ldflags="-X 'github.com/ameistad/turkis/cmd.version=1.0.0'" -o turkis .
 ```
 
 ## Documentation

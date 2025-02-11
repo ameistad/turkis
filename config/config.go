@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 
 	"gopkg.in/yaml.v3"
 )
@@ -99,6 +100,23 @@ func LoadConfig(path string) (*Config, error) {
 	return &conf, nil
 }
 
+// ValidateDomain checks that a domain string is not empty and has a basic valid structure.
+func ValidateDomain(domain string) error {
+	if domain == "" {
+		return errors.New("domain cannot be empty")
+	}
+	// This regular expression is a simple validator. Adjust if needed.
+	pattern := `^(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$`
+	matched, err := regexp.MatchString(pattern, domain)
+	if err != nil {
+		return err
+	}
+	if !matched {
+		return fmt.Errorf("invalid domain format: %s", domain)
+	}
+	return nil
+}
+
 // ValidateConfigFile checks that the Config is well-formed.
 func ValidateConfigFile(conf *Config) error {
 	// Validate Traefik configuration.
@@ -108,6 +126,7 @@ func ValidateConfigFile(conf *Config) error {
 	if conf.Traefik.Domain == "" {
 		return errors.New("traefik domain is missing in config")
 	}
+
 	// Validate apps.
 	if len(conf.Apps) == 0 {
 		return errors.New("no apps defined in config")
@@ -120,8 +139,13 @@ func ValidateConfigFile(conf *Config) error {
 			return fmt.Errorf("app '%s': no domains defined", app.Name)
 		}
 		for _, domain := range app.Domains {
-			if domain.Domain == "" {
-				return fmt.Errorf("app '%s': found an empty domain", app.Name)
+			if err := ValidateDomain(domain.Domain); err != nil {
+				return fmt.Errorf("app '%s': %w", app.Name, err)
+			}
+			for _, alias := range domain.Aliases {
+				if err := ValidateDomain(alias); err != nil {
+					return fmt.Errorf("app '%s', alias '%s': %w", app.Name, alias, err)
+				}
 			}
 		}
 		if app.Dockerfile == "" {

@@ -25,7 +25,7 @@ var deployCmd = &cobra.Command{
 		}
 		conf, err := config.LoadConfig(confFilePath)
 		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
+			return fmt.Errorf("failed to load config from '%s': %w", confFilePath, err)
 		}
 		if err := config.ValidateConfigFile(conf); err != nil {
 			return fmt.Errorf("invalid config: %w", err)
@@ -97,56 +97,33 @@ func buildImage(dockerfile, buildContext, imageName string, buildArgs map[string
 	return cmd.Run()
 }
 
-// runContainer starts a new container from the specified image. It now accepts the new domains configuration
-// which includes a canonical domain along with one or more aliases to be redirected to it.
-// For each alias, we generate extra Traefik labels that create a dedicated router with a redirect middleware.
+// runContainer starts a new container from the specified image using the new domains configuration.
+// It configures the canonical router (via traefikLabels) and, for each alias, attaches extra labels
+// to set up a dedicated TLS-enabled router with a redirect middleware.
+// The redirect middleware uses a regex to catch all paths and issues a permanent redirect to the canonical domain.
 func runContainer(imageName string, env map[string]string, domains []config.Domain, appName string) (string, string, error) {
 	deploymentID := time.Now().Format("20060102150405")
 	containerName := fmt.Sprintf("%s-turkis-%s", appName, deploymentID)
 	args := []string{"run", "-d", "--name", containerName}
 
-	// Aggregate canonical hosts for the main router.
+	// Aggregate canonical domains from each Domain entry.
 	canonicalHosts := []string{}
 
 	// Build a map for additional alias router labels.
 	aliasLabels := make(map[string]string)
 
-	// Loop over each Domain entry.
+	// Iterate over all domains configured for the app.
 	for _, d := range domains {
-		// Add the canonical domain.
+		// Add the canonical domain for the main router.
 		canonicalHosts = append(canonicalHosts, d.Domain)
 
-		// For each alias defined, create labels for a dedicated redirect router.
-		for _, alias := range d.Aliases {
-			aliasKey := sanitize(alias) // sanitize to use in label keys (e.g. replace '.' with '_')
-			routerName := fmt.Sprintf("%s-redirect-%s", appName, aliasKey)
-
-			// Create a router that matches the alias domain.
-			keyRouter := fmt.Sprintf("traefik.http.routers.%s.rule", routerName)
-			aliasLabels[keyRouter] = fmt.Sprintf("Host(`%s`)", alias)
-
-			// Define the entrypoint and a 'noop' service.
-			keyEntry := fmt.Sprintf("traefik.http.routers.%s.entrypoints", routerName)
-			aliasLabels[keyEntry] = "websecure"
-			keyService := fmt.Sprintf("traefik.http.routers.%s.service", routerName)
-			aliasLabels[keyService] = "noop@internal"
-
-			// Attach a middleware to perform the redirect.
-			keyMiddleware := fmt.Sprintf("traefik.http.routers.%s.middlewares", routerName)
-			// Use the routerName as the middleware key.
-			aliasLabels[keyMiddleware] = routerName
-
-			// Define the redirect middleware using redirectRegex.
-			keyMWRegex := fmt.Sprintf("traefik.http.middlewares.%s.redirectRegex.regex", routerName)
-			aliasLabels[keyMWRegex] = "^(.*)$" // matches the entire URL path
-			// Redirect replacement: send the request to HTTPS with the canonical domain.
-			// Note: use "$$1" so that Traefik interprets it as "$1" for the matched group.
-			keyMWReplacement := fmt.Sprintf("traefik.http.middlewares.%s.redirectRegex.replacement", routerName)
-			aliasLabels[keyMWReplacement] = fmt.Sprintf("https://%s$$1", d.Domain)
+		// For every alias, create a dedicated router with redirect middleware.
+		for key, value := range generateAliasLabels(appName, d) {
+			aliasLabels[key] = value
 		}
 	}
 
-	// Generate labels for the canonical router from the aggregate slice of canonical hosts.
+	// Generate labels for the canonical router using the aggregated canonical domains.
 	canonicalLabels := traefikLabels(imageName, canonicalHosts, 80)
 	for k, v := range canonicalLabels {
 		args = append(args, "-l", fmt.Sprintf("%s=%s", k, v))
@@ -157,11 +134,11 @@ func runContainer(imageName string, env map[string]string, domains []config.Doma
 		args = append(args, "-l", fmt.Sprintf("%s=%s", k, v))
 	}
 
-	// Add custom labels to identify the app and its deployment.
+	// Append custom labels to identify the app and deployment.
 	args = append(args, "-l", fmt.Sprintf("turkis.app=%s", appName))
 	args = append(args, "-l", fmt.Sprintf("turkis.deployment=%s", deploymentID))
 
-	// Pass environment variables.
+	// Add environment variables.
 	for k, v := range env {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
 	}
@@ -169,6 +146,7 @@ func runContainer(imageName string, env map[string]string, domains []config.Doma
 	// Attach the container to the traefik-public network.
 	args = append(args, "--network", "traefik-public")
 
+	// Finally, set the image to run.
 	args = append(args, imageName)
 
 	cmd := exec.Command("docker", args...)
@@ -265,4 +243,23 @@ func traefikLabels(serviceName string, hosts []string, containerPort int) map[st
 		fmt.Sprintf("traefik.http.routers.%s.entrypoints", serviceName):               "websecure",
 		fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port", serviceName): fmt.Sprintf("%d", containerPort),
 	}
+}
+
+func generateAliasLabels(appName string, d config.Domain) map[string]string {
+	labels := make(map[string]string)
+	for _, alias := range d.Aliases {
+		aliasKey := sanitize(alias)
+		routerName := fmt.Sprintf("%s-redirect-%s", appName, aliasKey)
+
+		labels[fmt.Sprintf("traefik.http.routers.%s.rule", routerName)] = fmt.Sprintf("Host(`%s`)", alias)
+		labels[fmt.Sprintf("traefik.http.routers.%s.entrypoints", routerName)] = "websecure"
+		labels[fmt.Sprintf("traefik.http.routers.%s.service", routerName)] = "noop@internal"
+		labels[fmt.Sprintf("traefik.http.routers.%s.tls", routerName)] = "true"
+		labels[fmt.Sprintf("traefik.http.routers.%s.tls.certresolver", routerName)] = "letsencrypt"
+		labels[fmt.Sprintf("traefik.http.routers.%s.middlewares", routerName)] = routerName
+		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectRegex.regex", routerName)] = "^(https?://)?[^/]+(.*)$"
+		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectRegex.replacement", routerName)] = fmt.Sprintf("https://%s$2", d.Domain)
+		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectRegex.permanent", routerName)] = "true"
+	}
+	return labels
 }
