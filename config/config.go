@@ -46,11 +46,12 @@ func (d *Domain) UnmarshalYAML(value *yaml.Node) error {
 
 // AppConfig defines the configuration for an application.
 type AppConfig struct {
-	Name         string            `yaml:"name"`
-	Domains      []Domain          `yaml:"domains"`
-	Dockerfile   string            `yaml:"dockerfile"`
-	BuildContext string            `yaml:"buildContext"`
-	Env          map[string]string `yaml:"env"`
+	Name              string            `yaml:"name"`
+	Domains           []Domain          `yaml:"domains"`
+	Dockerfile        string            `yaml:"dockerfile"`
+	BuildContext      string            `yaml:"buildContext"`
+	Env               map[string]string `yaml:"env"`
+	KeepOldContainers int               `yaml:"keepOldContainers,omitempty"`
 }
 
 // TraefikConfig contains global Traefik settings.
@@ -177,4 +178,28 @@ func ValidateConfigFile(conf *Config) error {
 		}
 	}
 	return nil
+}
+
+// NormalizeConfig sets default values for the loaded configuration.
+func NormalizeConfig(conf *Config) {
+	for i, app := range conf.Apps {
+		if app.KeepOldContainers == 0 {
+			conf.Apps[i].KeepOldContainers = 2
+		}
+	}
+}
+
+// LoadAndValidateConfig loads the configuration from a file, normalizes it, and validates it.
+func LoadAndValidateConfig(path string) (*Config, error) {
+	conf, err := LoadConfig(path)
+	if err != nil {
+		return nil, err
+	}
+
+	NormalizeConfig(conf)
+
+	if err := ValidateConfigFile(conf); err != nil {
+		return nil, err
+	}
+	return conf, nil
 }

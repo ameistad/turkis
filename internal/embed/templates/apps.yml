@@ -13,3 +13,4 @@ apps:
     buildContext: "/path/to/your/app"
     env:
       NODE_ENV: "production"
+    keepOldContainers: 2

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 	"time"
 
@@ -23,18 +24,15 @@ var deployCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		conf, err := config.LoadConfig(confFilePath)
+		confFile, err := config.LoadAndValidateConfig(confFilePath)
 		if err != nil {
-			return fmt.Errorf("failed to load config from '%s': %w", confFilePath, err)
-		}
-		if err := config.ValidateConfigFile(conf); err != nil {
-			return fmt.Errorf("invalid config: %w", err)
+			return fmt.Errorf("configuration error: %w", err)
 		}
 
 		var appCfg *config.AppConfig
-		for i := range conf.Apps {
-			if conf.Apps[i].Name == appName {
-				appCfg = &conf.Apps[i]
+		for i := range confFile.Apps {
+			if confFile.Apps[i].Name == appName {
+				appCfg = &confFile.Apps[i]
 				break
 			}
 		}
@@ -75,6 +73,11 @@ func deployApp(appCfg *config.AppConfig) error {
 	// Stop any old containers so that Traefik routes traffic only to the new container.
 	if err := stopOldContainers(appCfg.Name, containerID, deploymentID); err != nil {
 		return fmt.Errorf("failed to stop old containers: %w", err)
+	}
+
+	// Prune extra old containers based on configuration.
+	if err := pruneOldContainers(appCfg.Name, containerID, appCfg.KeepOldContainers); err != nil {
+		return fmt.Errorf("failed to prune old containers: %w", err)
 	}
 
 	fmt.Printf("Successfully deployed app '%s'. New deployment ID: %s\n", appCfg.Name, deploymentID)
@@ -273,4 +276,68 @@ func generateAliasLabels(appName string, d config.Domain) map[string]string {
 		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectRegex.permanent", routerName)] = "true"
 	}
 	return labels
+}
+
+// pruneOldContainers prunes extra old containers for the given app, keeping
+// only the specified number of recent old containers.
+// The new container (identified by newContainerID) is always retained.
+func pruneOldContainers(appName, newContainerID string, keepCount int) error {
+	out, err := exec.Command("docker", "ps", "-a", "--filter", fmt.Sprintf("label=turkis.app=%s", appName), "--format", "{{.ID}}").Output()
+	if err != nil {
+		return err
+	}
+	ids := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(ids) == 0 || (len(ids) == 1 && ids[0] == "") {
+		return nil
+	}
+
+	// Build a slice of container information.
+	type containerInfo struct {
+		ID           string
+		DeploymentID string
+	}
+	var containers []containerInfo
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		// Obtain the container's deployment label.
+		labelOut, err := exec.Command("docker", "inspect", "--format", "{{ index .Config.Labels \"turkis.deployment\" }}", id).Output()
+		if err != nil {
+			fmt.Printf("Error inspecting container %s for deployment label: %v\n", id, err)
+			continue
+		}
+		depID := strings.TrimSpace(string(labelOut))
+		containers = append(containers, containerInfo{ID: id, DeploymentID: depID})
+	}
+
+	// Exclude the new container from pruning.
+	var oldContainers []containerInfo
+	for _, c := range containers {
+		if c.ID == newContainerID {
+			continue
+		}
+		oldContainers = append(oldContainers, c)
+	}
+
+	// Sort old containers by DeploymentID descending (most recent first).
+	sort.Slice(oldContainers, func(i, j int) bool {
+		return oldContainers[i].DeploymentID > oldContainers[j].DeploymentID
+	})
+
+	// If there are fewer (or equal) than keepCount old containers, nothing to prune.
+	if len(oldContainers) <= keepCount {
+		fmt.Println("No extra containers to prune.")
+		return nil
+	}
+
+	// Prune containers that exceed the configured retention.
+	for _, c := range oldContainers[keepCount:] {
+		fmt.Printf("Pruning container %s (deployment: %s)\n", c.ID, c.DeploymentID)
+		out, err := exec.Command("docker", "rm", c.ID).CombinedOutput()
+		if err != nil {
+			fmt.Printf("Error pruning container %s: %v, details: %s\n", c.ID, err, string(out))
+		}
+	}
+	return nil
 }

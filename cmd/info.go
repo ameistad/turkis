@@ -21,14 +21,9 @@ var infoCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		// Load config
-		confFile, err := config.LoadConfig(confFilePath)
+		confFile, err := config.LoadAndValidateConfig(confFilePath)
 		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		if err := config.ValidateConfigFile(confFile); err != nil {
-			return fmt.Errorf("invalid config: %w", err)
+			return fmt.Errorf("configuration error: %w", err)
 		}
 
 		// Find app in config
