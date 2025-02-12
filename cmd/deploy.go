@@ -203,7 +203,7 @@ func healthCheckContainer(containerID string) error {
 			time.Sleep(interval)
 			continue
 		}
-		fmt.Printf("Container %s status: %s\n", containerID, health.Status)
+		fmt.Printf("Container status: %s\n", health.Status)
 		if health.Status == "healthy" {
 			return nil
 		}
