@@ -15,7 +15,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print the current version of turkis",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("turkis %s", version)
+		fmt.Printf("turkis %s\n", version)
 	},
 }
 

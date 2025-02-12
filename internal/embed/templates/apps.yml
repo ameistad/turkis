@@ -14,3 +14,6 @@ apps:
     env:
       NODE_ENV: "production"
     keepOldContainers: 2
+    volumes:
+      - "/host/path:/container/path"
+      - "/another/host/path:/another/container/path"

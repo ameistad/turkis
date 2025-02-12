@@ -48,8 +48,8 @@ func init() {
 	rootCmd.AddCommand(deployCmd)
 }
 
-// deployApp builds the Docker image, runs a new container, checks its health,
-// and stops any old containers so that Traefik routes traffic only to the new one.
+// deployApp builds the Docker image, runs a new container (with volumes), checks its health,
+// stops any old containers, and prunes extras.
 func deployApp(appCfg *config.AppConfig) error {
 	imageName := appCfg.Name + ":latest"
 
@@ -59,7 +59,7 @@ func deployApp(appCfg *config.AppConfig) error {
 	}
 
 	// Run a new container and obtain its ID and deployment ID.
-	containerID, deploymentID, err := runContainer(imageName, appCfg.Env, appCfg.Domains, appCfg.Name)
+	containerID, deploymentID, err := runContainer(imageName, appCfg.Env, appCfg.Volumes, appCfg.Domains, appCfg.Name)
 	if err != nil {
 		return fmt.Errorf("failed to run new container: %w", err)
 	}
@@ -101,10 +101,8 @@ func buildImage(dockerfile, buildContext, imageName string, buildArgs map[string
 }
 
 // runContainer starts a new container from the specified image using the new domains configuration.
-// It configures the canonical router (via traefikLabels) and, for each alias, attaches extra labels
-// to set up a dedicated TLS-enabled router with a redirect middleware.
-// The redirect middleware uses a regex to catch all paths and issues a permanent redirect to the canonical domain.
-func runContainer(imageName string, env map[string]string, domains []config.Domain, appName string) (string, string, error) {
+// It takes an additional volumes slice to attach volume mounts.
+func runContainer(imageName string, env map[string]string, volumes []string, domains []config.Domain, appName string) (string, string, error) {
 	deploymentID := time.Now().Format("20060102150405")
 	containerName := fmt.Sprintf("%s-turkis-%s", appName, deploymentID)
 	args := []string{"run", "-d", "--name", containerName}
@@ -144,6 +142,11 @@ func runContainer(imageName string, env map[string]string, domains []config.Doma
 	// Add environment variables.
 	for k, v := range env {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
+	}
+
+	// Add volumes.
+	for _, vol := range volumes {
+		args = append(args, "-v", vol)
 	}
 
 	// Attach the container to the traefik-public network.

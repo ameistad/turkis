@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -52,6 +53,7 @@ type AppConfig struct {
 	BuildContext      string            `yaml:"buildContext"`
 	Env               map[string]string `yaml:"env"`
 	KeepOldContainers int               `yaml:"keepOldContainers,omitempty"`
+	Volumes           []string          `yaml:"volumes,omitempty"`
 }
 
 // TraefikConfig contains global Traefik settings.
@@ -175,6 +177,23 @@ func ValidateConfigFile(conf *Config) error {
 		}
 		if !ctxInfo.IsDir() {
 			return fmt.Errorf("app '%s': build context '%s' is not a directory", app.Name, app.BuildContext)
+		}
+
+		// Validate volumes.
+		for _, volume := range app.Volumes {
+			// Expected format: /host/path:/container/path[:options]
+			parts := strings.Split(volume, ":")
+			if len(parts) < 2 || len(parts) > 3 {
+				return fmt.Errorf("app '%s': invalid volume mapping '%s'; expected '/host/path:/container/path[:options]'", app.Name, volume)
+			}
+			// Validate host path (first element).
+			if !filepath.IsAbs(parts[0]) {
+				return fmt.Errorf("app '%s': volume host path '%s' in '%s' is not an absolute path", app.Name, parts[0], volume)
+			}
+			// Validate container path (second element).
+			if !filepath.IsAbs(parts[1]) {
+				return fmt.Errorf("app '%s': volume container path '%s' in '%s' is not an absolute path", app.Name, parts[1], volume)
+			}
 		}
 	}
 	return nil
