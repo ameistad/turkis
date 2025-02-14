@@ -46,5 +46,5 @@ Powershell:
 }
 
 func init() {
-	rootCmd.AddCommand(completionCmd)
+	RootCmd.AddCommand(completionCmd)
 }

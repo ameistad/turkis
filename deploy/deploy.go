@@ -1,4 +1,4 @@
-package cmd
+package deploy
 
 import (
 	"encoding/json"
@@ -10,47 +10,11 @@ import (
 	"time"
 
 	"github.com/ameistad/turkis/config"
-	"github.com/spf13/cobra"
 )
 
-// deployCmd represents the "deploy" command.
-var deployCmd = &cobra.Command{
-	Use:   "deploy [appName]",
-	Short: "Deploy a specific app defined in the YAML config",
-	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		appName := args[0]
-		confFilePath, err := config.DefaultConfigFilePath()
-		if err != nil {
-			return err
-		}
-		confFile, err := config.LoadAndValidateConfig(confFilePath)
-		if err != nil {
-			return fmt.Errorf("configuration error: %w", err)
-		}
-
-		var appCfg *config.AppConfig
-		for i := range confFile.Apps {
-			if confFile.Apps[i].Name == appName {
-				appCfg = &confFile.Apps[i]
-				break
-			}
-		}
-		if appCfg == nil {
-			return fmt.Errorf("app '%s' not found in config", appName)
-		}
-
-		return deployApp(appCfg)
-	},
-}
-
-func init() {
-	rootCmd.AddCommand(deployCmd)
-}
-
-// deployApp builds the Docker image, runs a new container (with volumes), checks its health,
+// DeployApp builds the Docker image, runs a new container (with volumes), checks its health,
 // stops any old containers, and prunes extras.
-func deployApp(appCfg *config.AppConfig) error {
+func DeployApp(appCfg *config.AppConfig) error {
 	imageName := appCfg.Name + ":latest"
 
 	// Build the new image.
@@ -84,8 +48,6 @@ func deployApp(appCfg *config.AppConfig) error {
 	return nil
 }
 
-// buildImage builds a Docker image using the specified Dockerfile, build context,
-// and environment variables (passed as build arguments).
 func buildImage(dockerfile, buildContext, imageName string, buildArgs map[string]string) error {
 	args := []string{"build", "-t", imageName, "-f", dockerfile}
 	for k, v := range buildArgs {
@@ -100,8 +62,6 @@ func buildImage(dockerfile, buildContext, imageName string, buildArgs map[string
 	return cmd.Run()
 }
 
-// runContainer starts a new container from the specified image using the new domains configuration.
-// It takes an additional volumes slice to attach volume mounts.
 func runContainer(imageName string, env map[string]string, volumes []string, domains []config.Domain, appName string) (string, string, error) {
 	deploymentID := time.Now().Format("20060102150405")
 	containerName := fmt.Sprintf("%s-turkis-%s", appName, deploymentID)
@@ -165,14 +125,10 @@ func runContainer(imageName string, env map[string]string, volumes []string, dom
 	return containerID, deploymentID, nil
 }
 
-// sanitize replaces characters that are unsuitable for Traefik label keys.
-// For example, it replaces dots with underscores.
 func sanitize(s string) string {
 	return strings.ReplaceAll(s, ".", "_")
 }
 
-// healthCheckContainer continuously inspects the container until its health status is "healthy",
-// or if no HEALTHCHECK is defined, assumes the container is healthy.
 func healthCheckContainer(containerID string) error {
 	timeout := 60 * time.Second
 	interval := 2 * time.Second
@@ -212,9 +168,6 @@ func healthCheckContainer(containerID string) error {
 	return fmt.Errorf("health check timeout for container %s", containerID)
 }
 
-// stopOldContainers stops any running container for the app (identified by the "turkis.app" label),
-// except for the current container which is identified using both the container ID and deployment label.
-// This extra check helps avoid stopping containers that might belong to a concurrent deployment.
 func stopOldContainers(appName, newContainerID, newDeploymentID string) error {
 	out, err := exec.Command("docker", "ps", "--filter", fmt.Sprintf("label=turkis.app=%s", appName), "--format", "{{.ID}}").Output()
 	if err != nil {
@@ -244,8 +197,6 @@ func stopOldContainers(appName, newContainerID, newDeploymentID string) error {
 	return nil
 }
 
-// traefikLabels generates and returns a map of labels for Traefik routing.
-// It constructs a host rule using the provided hosts and sets the load balancer port.
 func traefikLabels(serviceName string, hosts []string, containerPort int) map[string]string {
 	hostRules := make([]string, len(hosts))
 	for i, host := range hosts {
@@ -281,9 +232,6 @@ func generateAliasLabels(appName string, d config.Domain) map[string]string {
 	return labels
 }
 
-// pruneOldContainers prunes extra old containers for the given app, keeping
-// only the specified number of recent old containers.
-// The new container (identified by newContainerID) is always retained.
 func pruneOldContainers(appName, newContainerID string, keepCount int) error {
 	out, err := exec.Command("docker", "ps", "-a", "--filter", fmt.Sprintf("label=turkis.app=%s", appName), "--format", "{{.ID}}").Output()
 	if err != nil {
@@ -294,7 +242,6 @@ func pruneOldContainers(appName, newContainerID string, keepCount int) error {
 		return nil
 	}
 
-	// Build a slice of container information.
 	type containerInfo struct {
 		ID           string
 		DeploymentID string
@@ -304,7 +251,6 @@ func pruneOldContainers(appName, newContainerID string, keepCount int) error {
 		if id == "" {
 			continue
 		}
-		// Obtain the container's deployment label.
 		labelOut, err := exec.Command("docker", "inspect", "--format", "{{ index .Config.Labels \"turkis.deployment\" }}", id).Output()
 		if err != nil {
 			fmt.Printf("Error inspecting container %s for deployment label: %v\n", id, err)
@@ -314,7 +260,6 @@ func pruneOldContainers(appName, newContainerID string, keepCount int) error {
 		containers = append(containers, containerInfo{ID: id, DeploymentID: depID})
 	}
 
-	// Exclude the new container from pruning.
 	var oldContainers []containerInfo
 	for _, c := range containers {
 		if c.ID == newContainerID {
@@ -323,18 +268,15 @@ func pruneOldContainers(appName, newContainerID string, keepCount int) error {
 		oldContainers = append(oldContainers, c)
 	}
 
-	// Sort old containers by DeploymentID descending (most recent first).
 	sort.Slice(oldContainers, func(i, j int) bool {
 		return oldContainers[i].DeploymentID > oldContainers[j].DeploymentID
 	})
 
-	// If there are fewer (or equal) than keepCount old containers, nothing to prune.
 	if len(oldContainers) <= keepCount {
 		fmt.Println("No extra containers to prune.")
 		return nil
 	}
 
-	// Prune containers that exceed the configured retention.
 	for _, c := range oldContainers[keepCount:] {
 		fmt.Printf("Pruning container %s (deployment: %s)\n", c.ID, c.DeploymentID)
 		out, err := exec.Command("docker", "rm", c.ID).CombinedOutput()
