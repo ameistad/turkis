@@ -16,6 +16,7 @@ func AppCmd() *cobra.Command {
 	appCmd.AddCommand(deployAllCmd())
 	appCmd.AddCommand(listAppsCmd())
 	appCmd.AddCommand(statusAppCmd())
+	appCmd.AddCommand(statusAllCmd())
 
 	return appCmd
 }
