@@ -17,6 +17,7 @@ func AppCmd() *cobra.Command {
 	appCmd.AddCommand(listAppsCmd())
 	appCmd.AddCommand(statusAppCmd())
 	appCmd.AddCommand(statusAllCmd())
+	appCmd.AddCommand(rollbackAppCmd())
 
 	return appCmd
 }

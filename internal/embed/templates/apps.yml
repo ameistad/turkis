@@ -13,7 +13,7 @@ apps:
     buildContext: "/path/to/your/app"
     env:
       NODE_ENV: "production"
-    keepOldContainers: 2
+    keepOldContainers: 3
     volumes:
       - "/host/path:/container/path"
       - "/another/host/path:/another/container/path"

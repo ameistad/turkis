@@ -1,7 +1,6 @@
 package deploy
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -29,8 +28,7 @@ func DeployApp(appCfg *config.AppConfig) error {
 	}
 
 	fmt.Printf("Performing health check on container %s...\n", containerID)
-	// Ensure the container is healthy.
-	if err := healthCheckContainer(containerID); err != nil {
+	if err := HealthCheckContainer(containerID); err != nil {
 		return fmt.Errorf("new container failed health check: %w", err)
 	}
 
@@ -65,6 +63,7 @@ func buildImage(dockerfile, buildContext, imageName string, buildArgs map[string
 func runContainer(imageName string, env map[string]string, volumes []string, domains []config.Domain, appName string) (string, string, error) {
 	deploymentID := time.Now().Format("20060102150405")
 	containerName := fmt.Sprintf("%s-turkis-%s", appName, deploymentID)
+
 	args := []string{"run", "-d", "--name", containerName}
 
 	// Aggregate canonical domains from each Domain entry.
@@ -127,45 +126,6 @@ func runContainer(imageName string, env map[string]string, volumes []string, dom
 
 func sanitize(s string) string {
 	return strings.ReplaceAll(s, ".", "_")
-}
-
-func healthCheckContainer(containerID string) error {
-	timeout := 60 * time.Second
-	interval := 2 * time.Second
-	deadline := time.Now().Add(timeout)
-
-	type Health struct {
-		Status string `json:"Status"`
-	}
-
-	for time.Now().Before(deadline) {
-		out, err := exec.Command("docker", "inspect", "--format", "{{json .State.Health}}", containerID).Output()
-		if err != nil {
-			fmt.Printf("Error inspecting container %s: %v. Retrying...\n", containerID, err)
-			time.Sleep(interval)
-			continue
-		}
-
-		trimmed := strings.TrimSpace(string(out))
-		// If no health check is defined, Docker returns "null".
-		if trimmed == "null" {
-			fmt.Printf("Warning: container %s does not have a HEALTHCHECK defined; assuming healthy...\n", containerID)
-			return nil
-		}
-
-		var health Health
-		if err := json.Unmarshal([]byte(trimmed), &health); err != nil {
-			fmt.Printf("Error parsing health info for container %s: %v. Retrying...\n", containerID, err)
-			time.Sleep(interval)
-			continue
-		}
-		fmt.Printf("Container status: %s\n", health.Status)
-		if health.Status == "healthy" {
-			return nil
-		}
-		time.Sleep(interval)
-	}
-	return fmt.Errorf("health check timeout for container %s", containerID)
 }
 
 func stopOldContainers(appName, newContainerID, newDeploymentID string) error {
@@ -242,11 +202,7 @@ func pruneOldContainers(appName, newContainerID string, keepCount int) error {
 		return nil
 	}
 
-	type containerInfo struct {
-		ID           string
-		DeploymentID string
-	}
-	var containers []containerInfo
+	var containers []ContainerInfo
 	for _, id := range ids {
 		if id == "" {
 			continue
@@ -257,10 +213,10 @@ func pruneOldContainers(appName, newContainerID string, keepCount int) error {
 			continue
 		}
 		depID := strings.TrimSpace(string(labelOut))
-		containers = append(containers, containerInfo{ID: id, DeploymentID: depID})
+		containers = append(containers, ContainerInfo{ID: id, DeploymentID: depID})
 	}
 
-	var oldContainers []containerInfo
+	var oldContainers []ContainerInfo
 	for _, c := range containers {
 		if c.ID == newContainerID {
 			continue

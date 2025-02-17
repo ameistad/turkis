@@ -203,7 +203,7 @@ func ValidateConfigFile(conf *Config) error {
 func NormalizeConfig(conf *Config) {
 	for i, app := range conf.Apps {
 		if app.KeepOldContainers == 0 {
-			conf.Apps[i].KeepOldContainers = 2
+			conf.Apps[i].KeepOldContainers = 3
 		}
 	}
 }
