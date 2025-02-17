@@ -17,29 +17,13 @@ func statusAppCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			appName := args[0]
-			confFilePath, err := config.DefaultConfigFilePath()
+			appConfig, err := config.AppConfigByName(appName)
 			if err != nil {
 				return err
 			}
-			confFile, err := config.LoadAndValidateConfig(confFilePath)
-			if err != nil {
-				return fmt.Errorf("configuration error: %w", err)
-			}
-
-			// Find app in config
-			var app *config.AppConfig
-			for _, a := range confFile.Apps {
-				if a.Name == appName {
-					app = &a
-					break
-				}
-			}
-			if app == nil {
-				return fmt.Errorf("app '%s' not found in config", appName)
-			}
 
 			// Call printAppStatus and return its error (if any)
-			if err := printAppStatus(app); err != nil {
+			if err := printAppStatus(appConfig); err != nil {
 				return err
 			}
 

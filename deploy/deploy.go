@@ -13,16 +13,16 @@ import (
 
 // DeployApp builds the Docker image, runs a new container (with volumes), checks its health,
 // stops any old containers, and prunes extras.
-func DeployApp(appCfg *config.AppConfig) error {
-	imageName := appCfg.Name + ":latest"
+func DeployApp(appConfig *config.AppConfig) error {
+	imageName := appConfig.Name + ":latest"
 
 	// Build the new image.
-	if err := buildImage(appCfg.Dockerfile, appCfg.BuildContext, imageName, appCfg.Env); err != nil {
+	if err := buildImage(appConfig.Dockerfile, appConfig.BuildContext, imageName, appConfig.Env); err != nil {
 		return fmt.Errorf("failed to build image: %w", err)
 	}
 
 	// Run a new container and obtain its ID and deployment ID.
-	containerID, deploymentID, err := runContainer(imageName, appCfg.Env, appCfg.Volumes, appCfg.Domains, appCfg.Name)
+	containerID, deploymentID, err := runContainer(imageName, appConfig.Env, appConfig.Volumes, appConfig.Domains, appConfig.Name)
 	if err != nil {
 		return fmt.Errorf("failed to run new container: %w", err)
 	}
@@ -33,16 +33,16 @@ func DeployApp(appCfg *config.AppConfig) error {
 	}
 
 	// Stop any old containers so that Traefik routes traffic only to the new container.
-	if err := stopOldContainers(appCfg.Name, containerID, deploymentID); err != nil {
+	if err := stopOldContainers(appConfig.Name, containerID, deploymentID); err != nil {
 		return fmt.Errorf("failed to stop old containers: %w", err)
 	}
 
 	// Prune extra old containers based on configuration.
-	if err := pruneOldContainers(appCfg.Name, containerID, appCfg.KeepOldContainers); err != nil {
+	if err := pruneOldContainers(appConfig.Name, containerID, appConfig.KeepOldContainers); err != nil {
 		return fmt.Errorf("failed to prune old containers: %w", err)
 	}
 
-	fmt.Printf("Successfully deployed app '%s'. New deployment ID: %s\n", appCfg.Name, deploymentID)
+	fmt.Printf("Successfully deployed app '%s'. New deployment ID: %s\n", appConfig.Name, deploymentID)
 	return nil
 }
 

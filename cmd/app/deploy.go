@@ -16,27 +16,12 @@ func deployAppCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			appName := args[0]
-			confFilePath, err := config.DefaultConfigFilePath()
+			appConfig, err := config.AppConfigByName(appName)
 			if err != nil {
-				return err
-			}
-			confFile, err := config.LoadAndValidateConfig(confFilePath)
-			if err != nil {
-				return fmt.Errorf("configuration error: %w", err)
+				return fmt.Errorf("failed to get configuration for %q: %w", appName, err)
 			}
 
-			var appCfg *config.AppConfig
-			for i := range confFile.Apps {
-				if confFile.Apps[i].Name == appName {
-					appCfg = &confFile.Apps[i]
-					break
-				}
-			}
-			if appCfg == nil {
-				return fmt.Errorf("app '%s' not found in config", appName)
-			}
-
-			return deploy.DeployApp(appCfg)
+			return deploy.DeployApp(appConfig)
 		},
 	}
 	return deployAppCmd
@@ -49,23 +34,23 @@ func deployAllCmd() *cobra.Command {
 		Long:  `Deploy all applications defined in the configuration file.`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			confFilePath, err := config.DefaultConfigFilePath()
+			configFilePath, err := config.DefaultConfigFilePath()
 			if err != nil {
 				return err
 			}
-			confFile, err := config.LoadAndValidateConfig(confFilePath)
+			configFile, err := config.LoadAndValidateConfig(configFilePath)
 			if err != nil {
 				return fmt.Errorf("configuration error: %w", err)
 			}
 
 			// Iterate over all apps using indices to take a pointer reference.
-			for i := range confFile.Apps {
-				appCfg := &confFile.Apps[i]
-				fmt.Printf("Deploying app '%s'...\n", appCfg.Name)
-				if err := deploy.DeployApp(appCfg); err != nil {
-					fmt.Printf("Failed to deploy app '%s': %v\n", appCfg.Name, err)
+			for i := range configFile.Apps {
+				appConfig := &configFile.Apps[i]
+				fmt.Printf("Deploying app '%s'...\n", appConfig.Name)
+				if err := deploy.DeployApp(appConfig); err != nil {
+					fmt.Printf("Failed to deploy app '%s': %v\n", appConfig.Name, err)
 				} else {
-					fmt.Printf("Successfully deployed app '%s'.\n", appCfg.Name)
+					fmt.Printf("Successfully deployed app '%s'.\n", appConfig.Name)
 				}
 			}
 			return nil
