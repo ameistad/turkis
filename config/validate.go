@@ -32,9 +32,6 @@ func ValidateConfigFile(conf *Config) error {
 	if conf.Traefik.Email == "" {
 		return errors.New("traefik acme email is missing in config")
 	}
-	if conf.Traefik.Domain == "" {
-		return errors.New("traefik domain is missing in config")
-	}
 
 	// Validate apps.
 	if len(conf.Apps) == 0 {

@@ -15,8 +15,8 @@ import (
 
 // TraefikConfig holds Traefik-specific settings.
 type TraefikConfig struct {
-	Email  string
-	Domain string
+	Email         string
+	DockerNetwork string
 }
 
 // TemplateData now contains a nested Traefik field.
@@ -28,35 +28,29 @@ type TemplateData struct {
 func promptForTraefikConfig() (TraefikConfig, error) {
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Print("Enter Traefik ACME email: ")
+	fmt.Print("Enter ACME email used for setting up TLS certificates: \n")
 	email, err := reader.ReadString('\n')
 	if err != nil {
 		return TraefikConfig{}, err
 	}
 
-	fmt.Print("Enter Traefik domain (e.g. traefik.yourdomain.com): ")
-	domain, err := reader.ReadString('\n')
-	if err != nil {
-		return TraefikConfig{}, err
-	}
-
 	return TraefikConfig{
-		Email:  strings.TrimSpace(email),
-		Domain: strings.TrimSpace(domain),
+		Email:         strings.TrimSpace(email),
+		DockerNetwork: config.DockerNetwork,
 	}, nil
 }
 
 // createConfigFile backs up the current config file (if it exists) and writes a new one.
 func createConfigFile(data TemplateData) error {
-	confFilePath, err := config.DefaultConfigFilePath()
+	configFilePath, err := config.DefaultConfigFilePath()
 	if err != nil {
 		return err
 	}
 
 	// Backup if the config file exists.
-	if _, err := os.Stat(confFilePath); err == nil {
-		backupPath := filepath.Join(filepath.Dir(confFilePath), "old-"+filepath.Base(confFilePath))
-		if err := os.Rename(confFilePath, backupPath); err != nil {
+	if _, err := os.Stat(configFilePath); err == nil {
+		backupPath := filepath.Join(filepath.Dir(configFilePath), "old-"+filepath.Base(configFilePath))
+		if err := os.Rename(configFilePath, backupPath); err != nil {
 			return fmt.Errorf("failed to backup config file: %w", err)
 		}
 		fmt.Printf("Backed up config file to %s\n", backupPath)
@@ -73,11 +67,11 @@ func createConfigFile(data TemplateData) error {
 		return fmt.Errorf("failed to parse config template: %w", err)
 	}
 
-	if err = os.MkdirAll(filepath.Dir(confFilePath), 0755); err != nil {
+	if err = os.MkdirAll(filepath.Dir(configFilePath), 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	f, err := os.Create(confFilePath)
+	f, err := os.Create(configFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)
 	}
@@ -87,7 +81,7 @@ func createConfigFile(data TemplateData) error {
 		return fmt.Errorf("failed to execute config template: %w", err)
 	}
 
-	fmt.Printf("Successfully created config file '%s'\n", confFilePath)
+	fmt.Printf("Successfully created config file '%s'\n", configFilePath)
 	return nil
 }
 
@@ -104,6 +98,7 @@ func installTraefik(data TemplateData) error {
 	}
 
 	composePath := filepath.Join(traefikDir, "docker-compose.yml")
+
 	// Backup existing traefik compose file.
 	if _, err := os.Stat(composePath); err == nil {
 		backupPath := filepath.Join(traefikDir, "old-docker-compose.yml")
@@ -116,7 +111,7 @@ func installTraefik(data TemplateData) error {
 		fmt.Println("No existing Traefik compose file found; no backup was created.")
 	}
 
-	templateContent, err := embed.TemplateFS.ReadFile("templates/traefik-compose.yml")
+	templateContent, err := embed.TemplateFS.ReadFile("templates/traefik/docker-compose.yml")
 	if err != nil {
 		return fmt.Errorf("failed to read traefik template: %w", err)
 	}

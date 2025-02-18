@@ -1,6 +1,5 @@
 traefik:
   email: "{{ .Traefik.Email }}"
-  domain: "{{ .Traefik.Domain }}"
 apps:
   - name: "example-app"
     domains:

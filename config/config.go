@@ -8,6 +8,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const DockerNetwork = "turkis-public"
+
 // Domain represents either a simple canonical domain or a mapping that includes aliases.
 // When decoding a scalar, the value is assigned to the Domain field and Aliases will be empty.
 type Domain struct {
@@ -55,8 +57,7 @@ type AppConfig struct {
 
 // TraefikConfig contains global Traefik settings.
 type TraefikConfig struct {
-	Email  string `yaml:"email"`
-	Domain string `yaml:"domain"`
+	Email string `yaml:"email"`
 }
 
 // Config represents the overall configuration.

@@ -108,8 +108,8 @@ func runContainer(imageName string, env map[string]string, volumes []string, dom
 		args = append(args, "-v", vol)
 	}
 
-	// Attach the container to the traefik-public network.
-	args = append(args, "--network", "traefik-public")
+	// Attach the container to the network.
+	args = append(args, "--network", config.DockerNetwork)
 
 	// Finally, set the image to run.
 	args = append(args, imageName)
