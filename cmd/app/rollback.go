@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func rollbackAppCmd() *cobra.Command {
+func RollbackAppCmd() *cobra.Command {
 	rollbackAppCmd := &cobra.Command{
 		Use:   "rollback <app-name>",
 		Short: "Rollback an application",

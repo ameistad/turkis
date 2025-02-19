@@ -7,10 +7,11 @@ import (
 
 	"github.com/ameistad/turkis/config"
 	dnsutil "github.com/ameistad/turkis/internal"
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
-func statusAppCmd() *cobra.Command {
+func StatusAppCmd() *cobra.Command {
 	statusAppCmd := &cobra.Command{
 		Use:   "status <app-name>",
 		Short: "Get the status of an application",
@@ -22,8 +23,7 @@ func statusAppCmd() *cobra.Command {
 				return err
 			}
 
-			// Call printAppStatus and return its error (if any)
-			if err := printAppStatus(appConfig); err != nil {
+			if err := showAppStatus(appConfig); err != nil {
 				return err
 			}
 
@@ -33,79 +33,93 @@ func statusAppCmd() *cobra.Command {
 	return statusAppCmd
 }
 
-func statusAllCmd() *cobra.Command {
+func StatusAllCmd() *cobra.Command {
 	statusAllCmd := &cobra.Command{
 		Use:   "status-all",
 		Short: "Get the status of all applications in the configuration file",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 
-			confFilePath, err := config.DefaultConfigFilePath()
+			configFilePath, err := config.DefaultConfigFilePath()
 			if err != nil {
 				return err
 			}
-			confFile, err := config.LoadAndValidateConfig(confFilePath)
+			configFile, err := config.LoadAndValidateConfig(configFilePath)
 			if err != nil {
 				return fmt.Errorf("configuration error: %w", err)
 			}
 
-			// Find app in config
-			for i := range confFile.Apps {
-				if err := printAppStatus(&confFile.Apps[i]); err != nil {
+			// Show status for each app.
+			for i := range configFile.Apps {
+				if err := showAppStatus(&configFile.Apps[i]); err != nil {
 					return err
 				}
 			}
-
 			return nil
 		},
 	}
 	return statusAllCmd
 }
 
-func printAppStatus(app *config.AppConfig) error {
-
+func showAppStatus(app *config.AppConfig) error {
+	// Get container status and ID.
 	containerID, err := getContainerID(app.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get container info: %w", err)
 	}
 
-	// Get container status
 	status, err := getContainerStatus(app.Name)
 	if err != nil {
 		return fmt.Errorf("failed to get container status: %w", err)
 	}
-	fmt.Printf("App: %s\n", app.Name)
-	fmt.Printf("Status: %s\n", status)
-	fmt.Printf("Domains:\n")
+
+	// Build domains output.
+	var domainLines []string
 	for _, d := range app.Domains {
-		// Display the canonical domain
+		// Canonical domain.
 		ip, err := dnsutil.GetARecord(d.Domain)
 		if err != nil {
-			fmt.Printf("  %s -> no A record found\n", d.Domain)
+			domainLines = append(domainLines, fmt.Sprintf("  - %s -> %s", d.Domain, color.RedString("no A record found")))
 		} else {
-			fmt.Printf("  %s -> %s\n", d.Domain, ip.String())
+			domainLines = append(domainLines, fmt.Sprintf("  - %s -> %s", d.Domain, ip.String()))
 		}
 
-		// Display any aliases if available
+		// Aliases, if any.
 		for _, alias := range d.Aliases {
 			ipAlias, err := dnsutil.GetARecord(alias)
 			if err != nil {
-				fmt.Printf("  %s -> no A record found\n", alias)
+				domainLines = append(domainLines, fmt.Sprintf("  - %s -> %s", alias, color.RedString("no A record found")))
 			} else {
-				fmt.Printf("  %s -> %s\n", alias, ipAlias.String())
+				domainLines = append(domainLines, fmt.Sprintf("  - %s -> %s", alias, ipAlias.String()))
 			}
 		}
 	}
-	fmt.Printf("Container ID: %s\n", containerID)
-	fmt.Printf("Dockerfile: %s\n", app.Dockerfile)
-	fmt.Printf("Build Context: %s\n", app.BuildContext)
+	domainsStr := strings.Join(domainLines, "\n")
 
-	if len(app.Env) > 0 {
-		fmt.Println("Environment Variables:")
-		for k, v := range app.Env {
-			fmt.Printf("  %s: %s\n", k, v)
-		}
+	// Build environment variables output.
+	var envLines []string
+	for k, v := range app.Env {
+		envLines = append(envLines, fmt.Sprintf("  %s: %s", k, v))
 	}
+	envStr := strings.Join(envLines, "\n")
+
+	// Define color functions.
+	header := color.New(color.Bold, color.FgCyan).SprintFunc()
+	label := color.New(color.FgYellow).SprintFunc()
+	success := color.New(color.FgGreen).SprintFunc()
+
+	// Display structured output.
+	fmt.Println(header("-------------------------------------------------"))
+	fmt.Printf("%s: %s\n", label("App"), app.Name)
+	fmt.Printf("%s: %s\n", label("Status"), success(status))
+	fmt.Printf("%s:\n%s\n", label("Domains"), domainsStr)
+	fmt.Printf("%s: %s\n", label("Container ID"), containerID)
+	fmt.Printf("%s: %s\n", label("Dockerfile"), app.Dockerfile)
+	fmt.Printf("%s: %s\n", label("Build Context"), app.BuildContext)
+	if envStr != "" {
+		fmt.Printf("%s:\n%s\n", label("Environment Variables"), envStr)
+	}
+	fmt.Println(header("-------------------------------------------------"))
 	return nil
 }
 

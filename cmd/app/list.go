@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func listAppsCmd() *cobra.Command {
+func ListAppsCmd() *cobra.Command {
 	listAppsCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all apps from config",

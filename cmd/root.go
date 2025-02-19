@@ -13,7 +13,13 @@ var RootCmd = &cobra.Command{
 }
 
 func init() {
-	RootCmd.AddCommand(app.AppCmd())
+	// app commands
+	RootCmd.AddCommand(app.DeployAppCmd())
+	RootCmd.AddCommand(app.DeployAllCmd())
+	RootCmd.AddCommand(app.ListAppsCmd())
+	RootCmd.AddCommand(app.StatusAppCmd())
+	RootCmd.AddCommand(app.StatusAllCmd())
+	RootCmd.AddCommand(app.RollbackAppCmd())
 }
 
 func Execute() error {

@@ -8,12 +8,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func deployAppCmd() *cobra.Command {
+func DeployAppCmd() *cobra.Command {
 	deployAppCmd := &cobra.Command{
 		Use:   "deploy <app-name>",
 		Short: "Deploy an application",
 		Long:  `Deploy a single application by name`,
-		Args:  cobra.ExactArgs(1),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return fmt.Errorf("app deploy requires exactly one argument: the app name (e.g., 'turkis app deploy my-app')")
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			appName := args[0]
 			appConfig, err := config.AppConfigByName(appName)
@@ -27,7 +32,7 @@ func deployAppCmd() *cobra.Command {
 	return deployAppCmd
 }
 
-func deployAllCmd() *cobra.Command {
+func DeployAllCmd() *cobra.Command {
 	deployAllCmd := &cobra.Command{
 		Use:   "deploy-all",
 		Short: "Deploy all applications",
