@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/fatih/color"
 )
 
 // Health represents the container's health state.
@@ -46,5 +48,16 @@ func HealthCheckContainer(containerID string) error {
 		}
 		time.Sleep(interval)
 	}
-	return fmt.Errorf("health check timeout for container %s", containerID)
+	return fmt.Errorf(`health check timeout for container %s
+
+	Troubleshooting tips:
+	- %s
+	- %s
+	- %s
+	- %s
+	`, containerID,
+		color.YellowString("Check the container logs: docker logs %s", containerID),
+		color.YellowString("Verify that the HEALTHCHECK instruction is correctly defined in your Dockerfile."),
+		color.YellowString("Ensure that any dependencies needed by the container are available."),
+		color.YellowString("Review the container configuration for any resource constraints."))
 }
