@@ -37,9 +37,15 @@ func DeployApp(appConfig *config.AppConfig) error {
 		return fmt.Errorf("failed to stop old containers: %w", err)
 	}
 
-	// Prune extra old containers based on configuration.
+	// Prune old containers based on configuration.
 	if err := pruneOldContainers(appConfig.Name, containerID, appConfig.KeepOldContainers); err != nil {
 		return fmt.Errorf("failed to prune old containers: %w", err)
+	}
+
+	// Clean up old dangling images
+	if err := pruneOldImages(appConfig.Name); err != nil {
+		fmt.Printf("Warning: failed to prune old images: %v\n", err)
+		// We don't return the error here as this is a non-critical step
 	}
 
 	fmt.Printf("Successfully deployed app '%s'. New deployment ID: %s\n", appConfig.Name, deploymentID)
@@ -264,5 +270,20 @@ func pruneOldContainers(appName, newContainerID string, keepCount int) error {
 			fmt.Printf("Error pruning container %s: %v, details: %s\n", c.ID, err, string(out))
 		}
 	}
+	return nil
+}
+
+func pruneOldImages(appName string) error {
+	fmt.Println("Pruning dangling images...")
+
+	// First prune dangling images related to this app
+	filterArg := fmt.Sprintf("reference=%s*", appName)
+	pruneCmd := exec.Command("docker", "image", "prune", "--force", "--filter", filterArg)
+	pruneCmd.Stdout = os.Stdout
+	pruneCmd.Stderr = os.Stderr
+	if err := pruneCmd.Run(); err != nil {
+		return fmt.Errorf("error pruning dangling images for %s: %w", appName, err)
+	}
+
 	return nil
 }
