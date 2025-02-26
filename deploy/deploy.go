@@ -207,26 +207,42 @@ func generateAliasLabels(appName string, d config.Domain) map[string]string {
 	labels := make(map[string]string)
 	for _, alias := range d.Aliases {
 		aliasKey := sanitize(alias)
-		routerName := fmt.Sprintf("%s-redirect-%s", appName, aliasKey)
 
-		labels[fmt.Sprintf("traefik.http.routers.%s.rule", routerName)] = fmt.Sprintf("Host(`%s`)", alias)
-		labels[fmt.Sprintf("traefik.http.routers.%s.entrypoints", routerName)] = "websecure"
-		labels[fmt.Sprintf("traefik.http.routers.%s.service", routerName)] = "noop@internal"
-		labels[fmt.Sprintf("traefik.http.routers.%s.tls", routerName)] = "true"
-		labels[fmt.Sprintf("traefik.http.routers.%s.tls.certresolver", routerName)] = "letsencrypt"
-		labels[fmt.Sprintf("traefik.http.routers.%s.middlewares", routerName)] = routerName
-		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectRegex.regex", routerName)] = "^(https?://)?[^/]+(.*)$"
-		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectRegex.replacement", routerName)] = fmt.Sprintf("https://%s$2", d.Domain)
-		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectRegex.permanent", routerName)] = "true"
+		// HTTP router - redirects http://alias.com to https://www.domain.com directly
+		httpRouterName := fmt.Sprintf("%s-http-%s", appName, aliasKey)
+		middlewareName := fmt.Sprintf("%s-redirect", httpRouterName)
+
+		labels[fmt.Sprintf("traefik.http.routers.%s.rule", httpRouterName)] = fmt.Sprintf("Host(`%s`)", alias)
+		labels[fmt.Sprintf("traefik.http.routers.%s.entrypoints", httpRouterName)] = "web"
+		labels[fmt.Sprintf("traefik.http.routers.%s.service", httpRouterName)] = "noop@internal"
+		labels[fmt.Sprintf("traefik.http.routers.%s.middlewares", httpRouterName)] = middlewareName
+		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.regex", middlewareName)] = "^(.*)$"
+		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.replacement", middlewareName)] = fmt.Sprintf("https://%s$1", d.Domain)
+		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.permanent", middlewareName)] = "true"
+
+		// HTTPS router - redirects https://alias.com to https://www.domain.com
+		httpsRouterName := fmt.Sprintf("%s-https-%s", appName, aliasKey)
+		httpsMiddlewareName := fmt.Sprintf("%s-redirect", httpsRouterName)
+
+		labels[fmt.Sprintf("traefik.http.routers.%s.rule", httpsRouterName)] = fmt.Sprintf("Host(`%s`)", alias)
+		labels[fmt.Sprintf("traefik.http.routers.%s.entrypoints", httpsRouterName)] = "websecure"
+		labels[fmt.Sprintf("traefik.http.routers.%s.service", httpsRouterName)] = "noop@internal"
+		labels[fmt.Sprintf("traefik.http.routers.%s.tls", httpsRouterName)] = "true"
+		labels[fmt.Sprintf("traefik.http.routers.%s.tls.certresolver", httpsRouterName)] = "letsencrypt"
+		labels[fmt.Sprintf("traefik.http.routers.%s.middlewares", httpsRouterName)] = httpsMiddlewareName
+		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.regex", httpsMiddlewareName)] = "^(.*)$"
+		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.replacement", httpsMiddlewareName)] = fmt.Sprintf("https://%s$1", d.Domain)
+		labels[fmt.Sprintf("traefik.http.middlewares.%s.redirectregex.permanent", httpsMiddlewareName)] = "true"
 	}
 	return labels
 }
 
 func pruneOldContainers(appName, newContainerID string, keepCount int) error {
-	out, err := exec.Command("docker", "ps", "-a", "--filter", fmt.Sprintf("label=turkis.app=%s", appName), "--format", "{{.ID}}").Output()
+	out, err := exec.Command("docker", "ps", "-a", "--filter", fmt.Sprintf("label=turkis.app=%s", appName), "--format", "{{.ID}}").CombinedOutput()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to list containers: %w - output: %s", err, string(out))
 	}
+
 	ids := strings.Split(strings.TrimSpace(string(out)), "\n")
 	if len(ids) == 0 || (len(ids) == 1 && ids[0] == "") {
 		return nil
@@ -237,12 +253,18 @@ func pruneOldContainers(appName, newContainerID string, keepCount int) error {
 		if id == "" {
 			continue
 		}
-		labelOut, err := exec.Command("docker", "inspect", "--format", "{{ index .Config.Labels \"turkis.deployment\" }}", id).Output()
+		labelOut, err := exec.Command("docker", "inspect", "--format", "{{ index .Config.Labels \"turkis.deployment\" }}", id).CombinedOutput()
 		if err != nil {
 			fmt.Printf("Error inspecting container %s for deployment label: %v\n", id, err)
 			continue
 		}
+
 		depID := strings.TrimSpace(string(labelOut))
+		// Validate deployment ID format (should be a timestamp like 20060102150405)
+		if len(depID) != 14 || !isNumeric(depID) {
+			fmt.Printf("Warning: Container %s has invalid deployment ID format: %s\n", id, depID)
+		}
+
 		containers = append(containers, ContainerInfo{ID: id, DeploymentID: depID})
 	}
 
@@ -254,6 +276,7 @@ func pruneOldContainers(appName, newContainerID string, keepCount int) error {
 		oldContainers = append(oldContainers, c)
 	}
 
+	// Sort by deployment ID (newer ones first)
 	sort.Slice(oldContainers, func(i, j int) bool {
 		return oldContainers[i].DeploymentID > oldContainers[j].DeploymentID
 	})
@@ -273,16 +296,59 @@ func pruneOldContainers(appName, newContainerID string, keepCount int) error {
 	return nil
 }
 
+// Helper function to check if a string contains only digits
+func isNumeric(s string) bool {
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func pruneOldImages(appName string) error {
 	fmt.Println("Pruning dangling images...")
 
-	// First prune dangling images related to this app
-	filterArg := fmt.Sprintf("reference=%s*", appName)
-	pruneCmd := exec.Command("docker", "image", "prune", "--force", "--filter", filterArg)
+	// First, remove unused images related to this app
+	listCmd := exec.Command("docker", "images", "--filter", fmt.Sprintf("reference=%s", appName), "--format", "{{.ID}}")
+	output, err := listCmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("error listing images for %s: %w (%s)", appName, err, string(output))
+	}
+
+	imageIDs := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for _, id := range imageIDs {
+		if id == "" {
+			continue
+		}
+
+		// Check if the image is not being used
+		inspectCmd := exec.Command("docker", "inspect", "--format", "{{.RepoTags}}", id)
+		inspectOut, err := inspectCmd.CombinedOutput()
+		if err != nil {
+			fmt.Printf("Warning: could not inspect image %s: %v\n", id, err)
+			continue
+		}
+
+		// Skip the latest tag
+		if strings.Contains(string(inspectOut), fmt.Sprintf("%s:latest", appName)) {
+			continue
+		}
+
+		fmt.Printf("Removing old image: %s\n", id)
+		removeCmd := exec.Command("docker", "rmi", id)
+		removeOut, err := removeCmd.CombinedOutput()
+		if err != nil {
+			fmt.Printf("Warning: could not remove image %s: %v (%s)\n", id, err, string(removeOut))
+		}
+	}
+
+	// Then, prune dangling images (no tag) system-wide
+	pruneCmd := exec.Command("docker", "image", "prune", "--force")
 	pruneCmd.Stdout = os.Stdout
 	pruneCmd.Stderr = os.Stderr
 	if err := pruneCmd.Run(); err != nil {
-		return fmt.Errorf("error pruning dangling images for %s: %w", appName, err)
+		return fmt.Errorf("error pruning dangling images: %w", err)
 	}
 
 	return nil
