@@ -37,19 +37,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    labels:
-      # Catch-all on HTTP (port 80)
-      - "traefik.http.routers.catchall-http.rule=HostRegexp(`{any:.*}`)"
-      - "traefik.http.routers.catchall-http.entrypoints=web"
-      - "traefik.http.routers.catchall-http.priority=1"
-      - "traefik.http.routers.catchall-http.service=noop@internal"
-
-      # Catch-all on HTTPS (port 443)
-      - "traefik.http.routers.catchall-https.rule=HostRegexp(`{any:.*}`)"
-      - "traefik.http.routers.catchall-https.entrypoints=websecure"
-      - "traefik.http.routers.catchall-https.priority=1"
-      - "traefik.http.routers.catchall-https.service=noop@internal"
-
 volumes:
   letsencrypt:
 
