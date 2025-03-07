@@ -2,7 +2,7 @@ package deploy
 
 import (
 	"fmt"
-	"os"
+	"io"
 	"os/exec"
 	"sort"
 	"strings"
@@ -135,8 +135,8 @@ func PruneOldImages(appName string) error {
 
 	// Then, prune dangling images (no tag) system-wide
 	pruneCmd := exec.Command("docker", "image", "prune", "--force")
-	pruneCmd.Stdout = os.Stdout
-	pruneCmd.Stderr = os.Stderr
+	pruneCmd.Stdout = io.Discard
+	pruneCmd.Stderr = io.Discard
 	if err := pruneCmd.Run(); err != nil {
 		return fmt.Errorf("error pruning dangling images: %w", err)
 	}

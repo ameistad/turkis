@@ -59,7 +59,7 @@ func RollbackAppCmd() *cobra.Command {
 
 			fmt.Printf("Current container: %s\n", currentContainerID)
 			fmt.Printf("Rolling back app '%s' to container %s\n", appConfig.Name, targetContainerID)
-			if err := deploy.RollbackToContainer(currentContainerID, targetContainerID); err != nil {
+			if err := deploy.RollbackToContainer(currentContainerID, targetContainerID, appConfig.HealthCheckPath); err != nil {
 				return fmt.Errorf("rollback failed: %w", err)
 			}
 

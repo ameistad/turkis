@@ -8,7 +8,13 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const DockerNetwork = "turkis-public"
+const (
+	// DockerNetwork is the network name to which containers are attached.
+	DockerNetwork = "turkis-public"
+
+	// DefaultContainerPort is the port on which your container serves HTTP.
+	DefaultContainerPort = 80
+)
 
 // Domain represents either a simple canonical domain or a mapping that includes aliases.
 // When decoding a scalar, the value is assigned to the Domain field and Aliases will be empty.
@@ -53,6 +59,7 @@ type AppConfig struct {
 	Env               map[string]string `yaml:"env"`
 	KeepOldContainers int               `yaml:"keepOldContainers,omitempty"`
 	Volumes           []string          `yaml:"volumes,omitempty"`
+	HealthCheckPath   string            `yaml:"healthCheckPath,omitempty"`
 }
 
 // TraefikConfig contains global Traefik settings.
@@ -88,39 +95,40 @@ func DefaultConfigFilePath() (string, error) {
 	return filepath.Join(configPath, ConfigFileName), nil
 }
 
-// LoadConfig loads YAML from the provided path into a Config struct.
-func LoadConfig(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config file '%s': %w", path, err)
-	}
-	var conf Config
-	if err := yaml.Unmarshal(data, &conf); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
-	}
-	return &conf, nil
-}
-
 // NormalizeConfig sets default values for the loaded configuration.
-func NormalizeConfig(conf *Config) {
+func NormalizeConfig(conf *Config) *Config {
+	normalized := *conf
+	normalized.Apps = make([]AppConfig, len(conf.Apps))
 	for i, app := range conf.Apps {
+		normalized.Apps[i] = app
+
+		// Default KeepOldContainers to 3 if not set.
 		if app.KeepOldContainers == 0 {
-			conf.Apps[i].KeepOldContainers = 3
+			normalized.Apps[i].KeepOldContainers = 3
+		}
+
+		// Default health check path to "/" if not set.
+		if app.HealthCheckPath == "" {
+			normalized.Apps[i].HealthCheckPath = "/"
 		}
 	}
+	return &normalized
 }
 
 // LoadAndValidateConfig loads the configuration from a file, normalizes it, and validates it.
 func LoadAndValidateConfig(path string) (*Config, error) {
-	conf, err := LoadConfig(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
+		return nil, fmt.Errorf("failed to read config file '%s': %w", path, err)
+	}
+	var config Config
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+	normalizedConfig := NormalizeConfig(&config)
+
+	if err := ValidateConfigFile(normalizedConfig); err != nil {
 		return nil, err
 	}
-
-	NormalizeConfig(conf)
-
-	if err := ValidateConfigFile(conf); err != nil {
-		return nil, err
-	}
-	return conf, nil
+	return normalizedConfig, nil
 }

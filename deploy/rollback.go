@@ -8,14 +8,14 @@ import (
 	"github.com/ameistad/turkis/config"
 )
 
-func RollbackToContainer(currentContainerID, targetContainerID string) error {
+func RollbackToContainer(currentContainerID, targetContainerID string, healthCheckPath string) error {
 	fmt.Printf("Starting target container: %s\n", targetContainerID)
 	if err := exec.Command("docker", "start", targetContainerID).Run(); err != nil {
 		return fmt.Errorf("failed to start target container %s: %w", targetContainerID, err)
 	}
 
 	// check health of target container with HealthCheckContainer
-	if err := HealthCheckContainer(targetContainerID); err != nil {
+	if err := HealthCheckContainer(targetContainerID, healthCheckPath); err != nil {
 		return fmt.Errorf("target container %s is not healthy: %w", targetContainerID, err)
 	}
 

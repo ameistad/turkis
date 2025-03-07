@@ -22,13 +22,13 @@ func DeployApp(appConfig *config.AppConfig) error {
 	}
 
 	// Run a new container and obtain its ID and deployment ID.
-	containerID, deploymentID, err := runContainer(imageName, appConfig.Env, appConfig.Volumes, appConfig.Domains, appConfig.Name)
+	containerID, deploymentID, err := runContainer(imageName, appConfig)
 	if err != nil {
 		return fmt.Errorf("failed to run new container: %w", err)
 	}
 
 	fmt.Printf("Performing health check on container %s...\n", containerID)
-	if err := HealthCheckContainer(containerID); err != nil {
+	if err := HealthCheckContainer(containerID, appConfig.HealthCheckPath); err != nil {
 		return fmt.Errorf("new container failed health check: %w", err)
 	}
 
@@ -66,24 +66,24 @@ func buildImage(dockerfile, buildContext, imageName string, buildArgs map[string
 	return cmd.Run()
 }
 
-func runContainer(imageName string, env map[string]string, volumes []string, domains []config.Domain, appName string) (string, string, error) {
+func runContainer(imageName string, appConfig *config.AppConfig) (string, string, error) {
 	deploymentID := time.Now().Format("20060102150405")
-	containerName := fmt.Sprintf("%s-turkis-%s", appName, deploymentID)
+	containerName := fmt.Sprintf("%s-turkis-%s", appConfig.Name, deploymentID)
 
 	args := []string{"run", "-d", "--name", containerName, "--restart", "unless-stopped"}
 
 	// Add all Traefik labels at once by merging maps
 	labels := make(map[string]string)
 	// 1. Add canonical domain labels
-	maps.Copy(labels, traefikLabels(appName, domains, 80))
+	maps.Copy(labels, traefikLabels(appConfig.Name, appConfig.Domains, appConfig.HealthCheckPath, 80))
 
 	// 2. Add alias labels for all domains
-	for _, domain := range domains {
-		maps.Copy(labels, generateAliasLabels(appName, domain))
+	for _, domain := range appConfig.Domains {
+		maps.Copy(labels, generateAliasLabels(appConfig.Name, domain))
 	}
 
 	// 3. Add identification labels
-	labels["turkis.app"] = appName
+	labels["turkis.app"] = appConfig.Name
 	labels["turkis.deployment"] = deploymentID
 
 	// Convert all labels to docker command arguments
@@ -92,16 +92,16 @@ func runContainer(imageName string, env map[string]string, volumes []string, dom
 	}
 
 	// Append custom labels to identify the app and deployment.
-	args = append(args, "-l", fmt.Sprintf("turkis.app=%s", appName))
+	args = append(args, "-l", fmt.Sprintf("turkis.app=%s", appConfig.Name))
 	args = append(args, "-l", fmt.Sprintf("turkis.deployment=%s", deploymentID))
 
 	// Add environment variables.
-	for k, v := range env {
+	for k, v := range appConfig.Env {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", k, v))
 	}
 
 	// Add volumes.
-	for _, vol := range volumes {
+	for _, vol := range appConfig.Volumes {
 		args = append(args, "-v", vol)
 	}
 
@@ -125,7 +125,7 @@ func sanitize(s string) string {
 	return strings.ReplaceAll(s, ".", "_")
 }
 
-func traefikLabels(serviceName string, domains []config.Domain, containerPort int) map[string]string {
+func traefikLabels(serviceName string, domains []config.Domain, healthCheckPath string, containerPort int) map[string]string {
 	// Sanitize service name for labels (remove colons)
 	sanitizedServiceName := strings.ReplaceAll(serviceName, ":", "-")
 
@@ -157,6 +157,11 @@ func traefikLabels(serviceName string, domains []config.Domain, containerPort in
 
 		// Service configuration
 		fmt.Sprintf("traefik.http.services.%s.loadbalancer.server.port", sanitizedServiceName): fmt.Sprintf("%d", containerPort),
+
+		// Traefik native health check configuration
+		fmt.Sprintf("traefik.http.services.%s.loadbalancer.healthcheck.path", sanitizedServiceName):     healthCheckPath,
+		fmt.Sprintf("traefik.http.services.%s.loadbalancer.healthcheck.interval", sanitizedServiceName): "10s",
+		fmt.Sprintf("traefik.http.services.%s.loadbalancer.healthcheck.timeout", sanitizedServiceName):  "2s",
 	}
 
 	return labels

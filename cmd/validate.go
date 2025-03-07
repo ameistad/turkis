@@ -17,13 +17,9 @@ var validateCmd = &cobra.Command{
 			return fmt.Errorf("couldn't determine config file path: %w", err)
 		}
 
-		confFile, err := config.LoadConfig(confFilePath)
+		_, err = config.LoadAndValidateConfig(confFilePath)
 		if err != nil {
 			return fmt.Errorf("failed to load config from '%s': %w", confFilePath, err)
-		}
-
-		if err := config.ValidateConfigFile(confFile); err != nil {
-			return fmt.Errorf("config validation error: %w", err)
 		}
 
 		fmt.Println("Config file is valid!")

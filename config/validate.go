@@ -26,6 +26,17 @@ func ValidateDomain(domain string) error {
 	return nil
 }
 
+// ValidateHealthCheckPath checks that a health check path is a valid URL path.
+func ValidateHealthCheckPath(path string) error {
+	if path == "" {
+		return errors.New("health check path cannot be empty")
+	}
+	if path[0] != '/' {
+		return errors.New("health check path must start with a slash")
+	}
+	return nil
+}
+
 // ValidateConfigFile checks that the Config is well-formed.
 func ValidateConfigFile(conf *Config) error {
 	// Validate Traefik configuration.
@@ -97,6 +108,11 @@ func ValidateConfigFile(conf *Config) error {
 			if !filepath.IsAbs(parts[1]) {
 				return fmt.Errorf("app '%s': volume container path '%s' in '%s' is not an absolute path", app.Name, parts[1], volume)
 			}
+		}
+
+		// Check that the health check path is a valid URL path.
+		if err := ValidateHealthCheckPath(app.HealthCheckPath); err != nil {
+			return fmt.Errorf("app '%s': %w", app.Name, err)
 		}
 	}
 	return nil
