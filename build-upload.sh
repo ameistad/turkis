@@ -8,16 +8,17 @@ fi
 
 HOSTNAME=$1
 
-# If turkis exists, remove it
-if [ -f turkis ]; then
-    rm turkis
+# If turkis-cli exists, remove it
+if [ -f turkis-cli ]; then
+    rm turkis-cli
 fi
 
-GOOS=linux GOARCH=amd64 go build -ldflags="-X 'github.com/ameistad/turkis/cmd.version=0.1.1'" -o turkis .
-scp turkis andreas@"$HOSTNAME":/home/andreas/turkis
+# Build the CLI binary from cmd/cli
+GOOS=linux GOARCH=amd64 go build -ldflags="-X 'github.com/ameistad/turkis/cmd.version=0.1.1'" -o turkis-cli ./cmd/cli
+scp turkis-cli andreas@"$HOSTNAME":/home/andreas/turkis-cli
 
-# Remove turkis after copying
-if [ -f turkis ]; then
-    rm turkis
+# Remove turkis-cli after copying
+if [ -f turkis-cli ]; then
+    rm turkis-cli
 fi
 

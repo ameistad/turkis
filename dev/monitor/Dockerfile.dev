@@ -1,0 +1,38 @@
+# Build the development image
+# docker build -t turkis-monitor-dev -f ./dev/monitor/Dockerfile.dev .
+
+FROM golang:1.23-alpine
+
+# Install development tools and runtime dependencies
+RUN apk add --no-cache \
+    git \
+    socat \
+    curl \
+    bash \
+    && go install github.com/air-verse/air@latest
+
+# Create config directory and copy example config
+# RUN mkdir -p /root/.config/turkis/
+# COPY ./dev/monitor/apps.yml /root/.config/turkis/apps.yml
+
+# Set environment variables
+ENV DOCKER_HOST=unix:///var/run/docker.sock
+ENV HOME=/root
+
+# Expose any ports that might be needed
+EXPOSE 9999
+
+# Create air config file
+RUN echo '[build]' > /root/.air.toml && \
+    echo 'cmd = "go build -o ./tmp/app ./cmd/monitor"' >> /root/.air.toml && \
+    echo 'bin = "./tmp/app"' >> /root/.air.toml && \
+    echo 'include_ext = ["go", "yaml"]' >> /root/.air.toml && \
+    echo 'exclude_dir = ["tmp", "vendor"]' >> /root/.air.toml && \
+    echo '[misc]' >> /root/.air.toml && \
+    echo 'clean_on_exit = true' >> /root/.air.toml
+
+# Working directory will be mounted from host
+WORKDIR /src
+
+# Use air for hot reload during development
+CMD ["air", "-c", "/root/.air.toml"]

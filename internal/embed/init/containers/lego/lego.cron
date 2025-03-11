@@ -1,0 +1,2 @@
+# Run renew.sh daily at midnight
+0 0 * * * root /usr/local/bin/renew.sh >> /var/log/lego.log 2>&1

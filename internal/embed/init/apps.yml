@@ -1,0 +1,18 @@
+tls:
+  email: "{{ .TLS.Email }}"
+apps:
+  - name: "example-app"
+    domains:
+      - domain: "domain.com"
+        aliases:
+          - "www.domain.com"
+          - "m.domain.com"
+      - "api.domain.com"
+    dockerfile: "/path/to/your/Dockerfile"
+    buildContext: "/path/to/your/app"
+    env:
+      NODE_ENV: "production"
+    keepOldContainers: 3
+    volumes:
+      - "/host/path:/container/path"
+      - "/another/host/path:/another/container/path"

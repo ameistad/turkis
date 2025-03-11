@@ -1,0 +1,46 @@
+services:
+  haproxy:
+    image: haproxy:3.1.5
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - lego-certs:/usr/local/etc/haproxy/certs:ro
+      - lego-webroot:/var/www/lego:ro
+    networks:
+      - turkis-network
+    depends_on:
+      - lego
+
+  monitor:
+    build: ./monitor
+    volumes:
+      - ./config:/config
+      - haproxy-socket:/var/run/haproxy
+    environment:
+      - TURKIS_CONFIG_PATH=/config
+    networks:
+      - turkis-network
+    depends_on:
+      - haproxy
+
+  lego:
+    build: ./lego
+    volumes:
+      - lego-certs:/etc/lego/certificates
+      - lego-webroot:/var/www/lego
+      - ./lego.conf:/etc/lego/lego.conf:ro  # mounted so updates are picked up
+    networks:
+      - turkis-network
+
+volumes:
+  lego-certs:
+  lego-webroot:
+
+networks:
+  turkis-network:
+    name: turkis-network
+    # Use the external option if the network is created separately,
+    # otherwise it will be created by this docker-compose file
+    # external: true
