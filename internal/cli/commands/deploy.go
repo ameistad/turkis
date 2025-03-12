@@ -50,7 +50,17 @@ func DeployAllCmd() *cobra.Command {
 
 			// Iterate over all apps using indices to take a pointer reference.
 			for i := range configFile.Apps {
-				appConfig := &configFile.Apps[i]
+				// Create a copy of the app config
+				app := configFile.Apps[i]
+				appConfig := &app
+				
+				// Store the TLS email in the environment variables map
+				if appConfig.Env == nil {
+					appConfig.Env = make(map[string]string)
+				}
+				// Use a special key that won't conflict with actual environment variables
+				appConfig.Env["__TURKIS_TLS_EMAIL"] = configFile.TLS.Email
+				
 				fmt.Printf("Deploying app '%s'...\n", appConfig.Name)
 				if err := deploy.DeployApp(appConfig); err != nil {
 					fmt.Printf("Failed to deploy app '%s': %v\n", appConfig.Name, err)

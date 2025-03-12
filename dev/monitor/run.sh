@@ -6,4 +6,5 @@ docker run -it --rm \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v $(pwd):/src \
   --network host \
+  -e DRY_RUN=true \
   turkis-monitor-dev

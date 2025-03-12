@@ -6,37 +6,37 @@ services:
       - "443:443"
     volumes:
       - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
-      - lego-certs:/usr/local/etc/haproxy/certs:ro
-      - lego-webroot:/var/www/lego:ro
+      - cert-storage:/usr/local/etc/haproxy/certs:rw
+      - webroot-storage:/var/www/lego:rw
+      - haproxy-socket:/var/run/haproxy
     networks:
       - turkis-network
-    depends_on:
-      - lego
 
   monitor:
-    build: ./monitor
+    image: ghcr.io/ameistad/turkis-monitor:latest
+    container_name: monitor
     volumes:
       - ./config:/config
       - haproxy-socket:/var/run/haproxy
+      - cert-storage:/etc/haproxy/certs:rw
+      - webroot-storage:/var/www/lego:rw
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "127.0.0.1:8080:80"
     environment:
       - TURKIS_CONFIG_PATH=/config
+      # Set to true to use staging server for testing (for Let's Encrypt)
+      - LEGO_STAGING=${LEGO_STAGING:-false}
+      # TLS is now configured via container labels - see apps.yml
     networks:
       - turkis-network
     depends_on:
       - haproxy
 
-  lego:
-    build: ./lego
-    volumes:
-      - lego-certs:/etc/lego/certificates
-      - lego-webroot:/var/www/lego
-      - ./lego.conf:/etc/lego/lego.conf:ro  # mounted so updates are picked up
-    networks:
-      - turkis-network
-
 volumes:
-  lego-certs:
-  lego-webroot:
+  cert-storage:
+  haproxy-socket:
+  webroot-storage:
 
 networks:
   turkis-network:

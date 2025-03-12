@@ -11,28 +11,26 @@ RUN apk add --no-cache \
     bash \
     && go install github.com/air-verse/air@latest
 
-# Create config directory and copy example config
-# RUN mkdir -p /root/.config/turkis/
-# COPY ./dev/monitor/apps.yml /root/.config/turkis/apps.yml
-
 # Set environment variables
 ENV DOCKER_HOST=unix:///var/run/docker.sock
 ENV HOME=/root
+ENV DRY_RUN=true
+
+# Debug: Print environment variable to verify it's set
+RUN echo "DRY_RUN environment variable is: $DRY_RUN"
 
 # Expose any ports that might be needed
 EXPOSE 9999
 
-# Create air config file
+# Create air config file without trying to pass command line arguments
 RUN echo '[build]' > /root/.air.toml && \
     echo 'cmd = "go build -o ./tmp/app ./cmd/monitor"' >> /root/.air.toml && \
     echo 'bin = "./tmp/app"' >> /root/.air.toml && \
     echo 'include_ext = ["go", "yaml"]' >> /root/.air.toml && \
-    echo 'exclude_dir = ["tmp", "vendor"]' >> /root/.air.toml && \
-    echo '[misc]' >> /root/.air.toml && \
-    echo 'clean_on_exit = true' >> /root/.air.toml
+    echo 'exclude_dir = ["tmp", "vendor"]' >> /root/.air.toml
 
 # Working directory will be mounted from host
 WORKDIR /src
 
 # Use air for hot reload during development
-CMD ["air", "-c", "/root/.air.toml"]
+CMD ["env" && "air", "-c", "/root/.air.toml"]

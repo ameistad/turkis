@@ -1,43 +1,74 @@
 # Turkis
-Zero downtime deployment tool on bare metal servers using imperative commands.
 
-## Build
-```bash 
-GOOS=linux GOARCH=amd64 go build -ldflags="-X 'github.com/ameistad/turkis/cmd.version=1.0.0'" -o turkis .
-```
+Zero downtime deployment tool for bare metal servers using Docker containers and HAProxy.
 
-## Documentation
+## Features
 
-### Deployment
-1. Check if docker is running
-2. Check if HAProxy is running
+- Zero downtime deployments with Blue-Green deployment strategy
+- Automatic TLS certificate provisioning via Let's Encrypt
+- Easy app configuration with a simple YAML file
+- Built-in health checks for deployed containers
+- Domain routing and HTTPS redirection
 
+## Installation
 
-### Prequisites
-- Docker
+### Option 1: Download the binary
 
-### Add key pair for github
+Download the latest release from [GitHub Releases](https://github.com/ameistad/turkis/releases).
+
 ```bash
-ssh-keygen -t ed25519
+# Linux (AMD64)
+curl -L https://github.com/ameistad/turkis/releases/latest/download/turkis-linux-amd64 -o turkis
+chmod +x turkis
+sudo mv turkis /usr/local/bin/
+
+# macOS (Apple Silicon)
+curl -L https://github.com/ameistad/turkis/releases/latest/download/turkis-darwin-arm64 -o turkis
+chmod +x turkis
+sudo mv turkis /usr/local/bin/
 ```
 
-### Add user to docker group
+### Option 2: Build from source
+
 ```bash
-sudo usermod -aG docker your_username
+git clone https://github.com/ameistad/turkis.git
+cd turkis
+go build -o turkis ./cmd/cli
+sudo mv turkis /usr/local/bin/
 ```
 
-### Example app.yml
+## Getting Started
+
+### Prerequisites
+
+- Docker installed and running
+- User added to the docker group: `sudo usermod -aG docker your_username`
+
+### Initialize Turkis
+
+```bash
+turkis init
+```
+
+This will:
+- Set up the directory structure at `~/.config/turkis/`
+- Create a sample configuration file
+- Set up the HAProxy and monitor containers
+
+### Configure Your Apps
+
+Edit the configuration file at `~/.config/turkis/apps.yml`:
+
 ```yaml
 tls:
-  email: "{{ .TLS.Email }}"
+  email: "your-email@example.com"  # Email for Let's Encrypt notifications
 apps:
   - name: "example-app"
     domains:
-      - domain: "domain.com"
+      - domain: "example.com"
         aliases:
-          - "www.domain.com"
-          - "m.domain.com"
-      - "api.domain.com"
+          - "www.example.com"
+      - "api.example.com"
     dockerfile: "/path/to/your/Dockerfile"
     buildContext: "/path/to/your/app"
     env:
@@ -45,36 +76,140 @@ apps:
     keepOldContainers: 3
     volumes:
       - "/host/path:/container/path"
-      - "/another/host/path:/another/container/path"
-  - name: "example-app-two"
-    domains:
-      - "example-app-two.domain.com"
-    dockerfile: "/path/to/your/Dockerfile"
-    buildContext: "/path/to/your/app"
-    env:
-      NODE_ENV: "production"
-    keepOldContainers: 3
-    volumes:
-      - "/host/path:/container/path"
-      - "/another/host/path:/another/container/path"
+    healthCheckPath: "/health"
 ```
 
+### Deploy Your Apps
+
+```bash
+# Deploy a single app
+turkis deploy example-app
+
+# Deploy all apps
+turkis deploy-all
+
+# Check the status of your deployments
+turkis status
+
+# List all deployed containers
+turkis list
+
+# Roll back to a previous deployment
+turkis rollback example-app
+```
+
+## Configuration Reference
+
+### TLS Configuration
+
+The `tls` section configures TLS certificate provisioning:
+
+```yaml
+tls:
+  email: "your-email@example.com"  # Required for Let's Encrypt notifications
+```
+
+### App Configuration
+
+Each app in the `apps` array can have the following properties:
+
+- `name`: Unique name for the app (required)
+- `domains`: List of domains for the app (required)
+  - Simple format: `"example.com"`
+  - With aliases: `{ domain: "example.com", aliases: ["www.example.com"] }`
+- `dockerfile`: Path to your Dockerfile (required)
+- `buildContext`: Build context directory for Docker (required)
+- `env`: Environment variables for the container
+- `keepOldContainers`: Number of old containers to keep after deployment (default: 3)
+- `volumes`: Docker volumes to mount
+- `healthCheckPath`: HTTP path for health checks (default: "/")
 
 ## Development
-### Monitor
+
+### Building the CLI
 
 ```bash
-docker build -t turkis-monitor-dev -f Dockerfile.monitor .
+go build -o turkis ./cmd/cli
 ```
 
+### Building the Monitor
+
 ```bash
+go build -o turkis-monitor ./cmd/monitor
+```
+
+### Using Docker for development
+
+Build and run the monitor for development:
+
+```bash
+docker build -t turkis-monitor-dev -f build/monitor/Dockerfile .
 docker run -it --rm \
   --name turkis-monitor-dev \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v $(pwd):/src \
+  -v $(pwd):/config \
   --network host \
   turkis-monitor-dev
 ```
-```bash
-docker exec -it turkis-monitor-dev bash
-```
+
+## Releasing
+
+Turkis uses GitHub Actions for automated builds and releases.
+
+### Automated Release Process
+
+1. Update the version number in relevant files:
+   ```bash
+   # Edit the version constant in internal/version/version.go
+   ```
+
+2. Commit your changes:
+   ```bash
+   git add .
+   git commit -m "Prepare for release v1.0.0"
+   git push origin main
+   ```
+
+3. Tag a new release:
+   ```bash
+   git tag v1.0.0
+   git push origin v1.0.0
+   ```
+
+4. GitHub Actions will automatically:
+   - Run all tests
+   - Build the monitor Docker image and push it to GitHub Container Registry
+   - Build the CLI binaries for all supported platforms
+   - Create a GitHub Release with the binaries attached
+
+### Manual Release Process
+
+If you need to build releases manually:
+
+1. Build the CLI for multiple platforms:
+   ```bash
+   # Linux (AMD64)
+   GOOS=linux GOARCH=amd64 go build -o turkis-linux-amd64 ./cmd/cli
+   
+   # Linux (ARM64)
+   GOOS=linux GOARCH=arm64 go build -o turkis-linux-arm64 ./cmd/cli
+   
+   # macOS (AMD64)
+   GOOS=darwin GOARCH=amd64 go build -o turkis-darwin-amd64 ./cmd/cli
+   
+   # macOS (ARM64)
+   GOOS=darwin GOARCH=arm64 go build -o turkis-darwin-arm64 ./cmd/cli
+   
+   # Windows
+   GOOS=windows GOARCH=amd64 go build -o turkis-windows-amd64.exe ./cmd/cli
+   ```
+
+2. Build and push the monitor Docker image:
+   ```bash
+   docker build -t ghcr.io/ameistad/turkis-monitor:latest -f build/monitor/Dockerfile .
+   docker push ghcr.io/ameistad/turkis-monitor:latest
+   ```
+
+## License
+
+[MIT License](LICENSE)
