@@ -23,7 +23,7 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.21'
-          cache: true
+          cache: false  # Disabling cache to avoid tar extraction errors
 
       - name: Run tests
         run: go test -v ./...
@@ -42,7 +42,7 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.21'
-          cache: true
+          cache: false  # Disabling cache to avoid tar extraction errors
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
