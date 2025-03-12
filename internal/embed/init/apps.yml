@@ -1,6 +1,20 @@
 tls:
   email: "{{ .TLS.Email }}"
 apps:
+  - name: "turkis-test"
+    domains:
+      - domain: "example.com"
+        aliases:
+          - "www.example.com"
+      - "test.example.com"
+    dockerfile: "~/.config/turkis/test-website/Dockerfile"
+    buildContext: "~/.config/turkis/test-website"
+    env:
+      NGINX_HOST: "example.com"
+    keepOldContainers: 3
+    healthCheckPath: "/health.html"
+  
+  # Example app configuration (for reference)
   - name: "example-app"
     domains:
       - domain: "domain.com"
