@@ -10,18 +10,39 @@ import (
 
 // HealthCheckContainer performs an HTTP health check on the specified container.
 func HealthCheckContainer(containerID, healthCheckPath string) error {
-	// First get the container's IP address
+	// First try to get the container's IP address on turkis-public network
 	cmd := exec.Command("docker", "inspect",
 		"--format", "{{.NetworkSettings.Networks.turkis-public.IPAddress}}",
 		containerID)
 
-	output, err := cmd.Output()
+	output, err := cmd.CombinedOutput() // Use CombinedOutput to get error messages too
 	if err != nil {
-		return fmt.Errorf("failed to get container IP: %w", err)
+		// If that fails, try to connect the container to the turkis-public network
+		fmt.Printf("Warning: Container not connected to turkis-public network. Trying to connect it...\n")
+		connectCmd := exec.Command("docker", "network", "connect", "turkis-public", containerID)
+		if connectErr := connectCmd.Run(); connectErr != nil {
+			return fmt.Errorf("failed to connect container to turkis-public network: %w", connectErr)
+		}
+		
+		// Try again after connecting
+		cmd = exec.Command("docker", "inspect",
+			"--format", "{{.NetworkSettings.Networks.turkis-public.IPAddress}}",
+			containerID)
+		output, err = cmd.Output()
+		if err != nil {
+			return fmt.Errorf("failed to get container IP after connecting to network: %w", err)
+		}
 	}
 
 	ipAddress := strings.TrimSpace(string(output))
 	if ipAddress == "" {
+		// If IP is still empty, try to inspect the container to see all network settings
+		inspectCmd := exec.Command("docker", "inspect", "--format", "{{json .NetworkSettings.Networks}}", containerID)
+		inspectOutput, inspectErr := inspectCmd.Output()
+		if inspectErr == nil {
+			fmt.Printf("Available networks for container: %s\n", string(inspectOutput))
+		}
+		
 		return fmt.Errorf("container has no IP address on turkis-public network")
 	}
 

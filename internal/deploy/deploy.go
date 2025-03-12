@@ -112,6 +112,17 @@ func runContainer(imageName string, appConfig *config.AppConfig) (string, string
 		args = append(args, "-v", vol)
 	}
 
+	// Ensure the network exists before attaching the container
+	ensureNetworkCmd := exec.Command("docker", "network", "inspect", config.DockerNetwork)
+	if err := ensureNetworkCmd.Run(); err != nil {
+		// Network doesn't exist, create it
+		fmt.Printf("Network %s doesn't exist. Creating it...\n", config.DockerNetwork)
+		createNetworkCmd := exec.Command("docker", "network", "create", config.DockerNetwork)
+		if err := createNetworkCmd.Run(); err != nil {
+			return "", "", fmt.Errorf("failed to create network %s: %w", config.DockerNetwork, err)
+		}
+	}
+	
 	// Attach the container to the network.
 	args = append(args, "--network", config.DockerNetwork)
 
