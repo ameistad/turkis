@@ -43,6 +43,7 @@ sudo mv turkis /usr/local/bin/
 
 - Docker installed and running
 - User added to the docker group: `sudo usermod -aG docker your_username`
+- Log out and log back in for group changes to take effect, or run `newgrp docker`
 
 ### Initialize Turkis
 
@@ -54,6 +55,23 @@ This will:
 - Set up the directory structure at `~/.config/turkis/`
 - Create a sample configuration file
 - Set up the HAProxy and monitor containers
+
+### Docker Socket Permissions
+
+The monitor container needs access to the Docker socket to watch for container events. If you encounter permission errors:
+
+1. Run the included setup script:
+   ```bash
+   cd ~/.config/turkis/containers
+   ./setup.sh
+   ```
+
+2. This will create an `.env` file with your Docker group ID, which the monitor container will use to access the Docker socket.
+
+3. Start the containers with:
+   ```bash
+   docker compose up -d
+   ```
 
 ### Configure Your Apps
 
@@ -158,19 +176,19 @@ Turkis uses GitHub Actions for automated builds and releases.
 
 ### Automated Release Process
 
-1. Update the version number in relevant files:
+1. Make sure all code changes are committed and pushed to main:
+   - Any workflow or CI/CD changes should be made separately from the release process
+   - Push these changes and wait for the workflow to complete before proceeding
+
+2. Update the version number in relevant files:
    ```bash
    # Edit the version constant in internal/version/version.go
-   ```
-
-2. Commit your changes:
-   ```bash
-   git add .
-   git commit -m "Prepare for release v1.0.0"
+   git add internal/version/version.go
+   git commit -m "Bump version to v1.0.0"
    git push origin main
    ```
 
-3. Tag a new release:
+3. Create an annotated tag for the release:
    ```bash
    git tag -a v1.0.0 -m "Release v1.0.0: Brief description of changes"
    git push origin v1.0.0
@@ -182,7 +200,15 @@ Turkis uses GitHub Actions for automated builds and releases.
    - Build the CLI binaries for all supported platforms
    - Create a GitHub Release with the binaries attached
 
-Note: The full build process only runs when pushing a tag that starts with 'v'. Pushes to the main branch or pull requests will only run tests without building or publishing artifacts.
+5. Verify the release at:
+   ```
+   https://github.com/ameistad/turkis/releases
+   ```
+
+**Important Note**: The workflow is optimized to:
+- Only run tests for pushes to branches and pull requests
+- Run the full build process (including release) only when pushing a tag
+- This separation prevents duplicate builds and conserves GitHub Actions minutes
 
 ### Manual Release Process
 

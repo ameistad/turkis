@@ -40,10 +40,12 @@ func InitCmd() *cobra.Command {
 				return err
 			}
 
-			fmt.Printf("Configuration files created successfully in %s", configDir)
+			fmt.Printf("Configuration files created successfully in %s\n", configDir)
 			fmt.Println("Add your applications to apps.yml and run 'turkis deploy <app-name>' to start the reverse proxy.")
-			fmt.Println("To start HAProxy, run the following command:")
-			fmt.Printf("  docker-compose -f %s/haproxy/docker-compose.yml up -d", configDir)
+			fmt.Println("\nBefore starting HAProxy and the monitor, run the setup script:")
+			fmt.Printf("cd %s/containers && ./setup.sh\n", configDir)
+			fmt.Println("\nThen start the containers with:")
+			fmt.Printf("docker compose -f %s/containers/docker-compose.yml up -d", configDir)
 			return nil
 		},
 	}
@@ -81,7 +83,13 @@ func copyTemplates(dst string) error {
 			return fmt.Errorf("failed to read embedded file %s: %w", path, err)
 		}
 
-		if err := os.WriteFile(targetPath, data, 0644); err != nil {
+		// Determine the file mode - make shell scripts executable
+		fileMode := fs.FileMode(0644)
+		if filepath.Ext(targetPath) == ".sh" {
+			fileMode = 0755
+		}
+
+		if err := os.WriteFile(targetPath, data, fileMode); err != nil {
 			return fmt.Errorf("failed to write file %s: %w", targetPath, err)
 		}
 

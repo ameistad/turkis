@@ -15,6 +15,9 @@ services:
   monitor:
     image: ghcr.io/ameistad/turkis-monitor:latest
     container_name: monitor
+    # Add group_add to allow Docker socket access
+    group_add:
+      - "${DOCKER_GID:-999}"  # Default to 999 if not set
     volumes:
       - ./config:/config
       - haproxy-socket:/var/run/haproxy
