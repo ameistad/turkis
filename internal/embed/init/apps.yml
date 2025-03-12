@@ -13,7 +13,7 @@ apps:
       NGINX_HOST: "example.com"
     keepOldContainers: 3
     healthCheckPath: "/health.html"
-  
+
   # Example app configuration (for reference)
   - name: "example-app"
     domains:

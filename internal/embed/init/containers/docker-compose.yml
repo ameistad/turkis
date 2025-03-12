@@ -8,7 +8,9 @@ services:
       - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
       - cert-storage:/usr/local/etc/haproxy/certs:rw
       - webroot-storage:/var/www/lego:rw
-      - haproxy-socket:/var/run/haproxy
+      - haproxy-socket:/var/run/haproxy:rw
+    # Add user root to ensure proper socket permissions
+    user: root
     networks:
       - turkis-network
 
@@ -20,7 +22,7 @@ services:
       - "${DOCKER_GID:-999}"  # Default to 999 if not set
     volumes:
       - ./config:/config
-      - haproxy-socket:/var/run/haproxy
+      - haproxy-socket:/var/run/haproxy:rw
       - cert-storage:/etc/haproxy/certs:rw
       - webroot-storage:/var/www/lego:rw
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -48,4 +50,6 @@ networks:
     name: turkis-public
     # This network is used both by the HAProxy/monitor and by deployed apps
     # The network name must match DockerNetwork in config.go (turkis-public)
-    # When docker-compose starts, it will create this network if it doesn't exist
+    # We mark it as external since it's created by the setup.sh script
+    # This suppresses warnings about the network not being created by compose
+    external: true

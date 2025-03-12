@@ -2,7 +2,7 @@ package version
 
 // Version is the current version of Turkis
 // This will be overridden during build when using ldflags
-var Version = "v0.1.7"
+var Version = "v0.1.8"
 
 // GetVersion returns the current version string
 func GetVersion() string {
