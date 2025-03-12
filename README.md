@@ -73,6 +73,20 @@ The monitor container needs access to the Docker socket to watch for container e
    docker compose up -d
    ```
 
+### Docker Network
+
+Turkis requires a Docker network named `turkis-public` for communication between containers. This network is automatically created when you start the containers with `docker compose up -d`.
+
+If you're experiencing issues with container deployments, ensure the network exists:
+
+```bash
+# Check if the network exists
+docker network ls | grep turkis-public
+
+# Create the network if it doesn't exist
+docker network create turkis-public
+```
+
 ### Configure Your Apps
 
 Edit the configuration file at `~/.config/turkis/apps.yml`:

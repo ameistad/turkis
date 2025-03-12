@@ -22,13 +22,30 @@ LEGO_STAGING=false
 EOF
 
 echo "Created .env file with Docker group ID"
-echo "You can now run 'docker compose up -d' to start the containers"
 
-# Create initial dummy certificate to help HAProxy start (optional)
-if [ ! -d "cert-storage" ]; then
-  echo "Creating initial dummy certificate..."
-  mkdir -p cert-storage
-  openssl req -x509 -newkey rsa:4096 -keyout cert-storage/localhost.key -out cert-storage/localhost.crt -days 365 -nodes -subj "/CN=localhost"
-  cat cert-storage/localhost.crt cert-storage/localhost.key > cert-storage/localhost.pem
-  echo "Initial certificate created at cert-storage/localhost.pem"
+# Ensure Docker network exists
+if ! docker network ls | grep -q turkis-public; then
+  echo "Creating turkis-public Docker network..."
+  docker network create turkis-public
+  echo "Network created."
+else
+  echo "turkis-public network already exists."
 fi
+
+# Set up certificate directories with correct permissions
+echo "Setting up certificate directories..."
+mkdir -p cert-storage/accounts
+chmod -R 777 cert-storage
+echo "Certificate directories created with proper permissions."
+
+# Set up webroot directory for ACME challenges
+mkdir -p webroot-storage/.well-known/acme-challenge
+chmod -R 777 webroot-storage
+
+# Create initial dummy certificate to help HAProxy start
+echo "Creating initial dummy certificate..."
+openssl req -x509 -newkey rsa:4096 -keyout cert-storage/localhost.key -out cert-storage/localhost.crt -days 365 -nodes -subj "/CN=localhost"
+cat cert-storage/localhost.crt cert-storage/localhost.key > cert-storage/localhost.pem
+echo "Initial certificate created at cert-storage/localhost.pem"
+
+echo "Setup complete. You can now run 'docker compose up -d' to start the containers."

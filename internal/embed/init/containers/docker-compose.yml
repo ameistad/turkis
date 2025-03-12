@@ -31,6 +31,8 @@ services:
       # Set to true to use staging server for testing (for Let's Encrypt)
       - LEGO_STAGING=${LEGO_STAGING:-false}
       # TLS is now configured via container labels - see apps.yml
+    # Set user to root to ensure proper permissions for certificate directories
+    user: root
     networks:
       - turkis-network
     depends_on:
@@ -43,7 +45,7 @@ volumes:
 
 networks:
   turkis-network:
-    name: turkis-network
-    # Use the external option if the network is created separately,
-    # otherwise it will be created by this docker-compose file
-    # external: true
+    name: turkis-public
+    # This network is used both by the HAProxy/monitor and by deployed apps
+    # The network name must match DockerNetwork in config.go (turkis-public)
+    # When docker-compose starts, it will create this network if it doesn't exist
