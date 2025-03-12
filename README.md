@@ -172,15 +172,17 @@ Turkis uses GitHub Actions for automated builds and releases.
 
 3. Tag a new release:
    ```bash
-   git tag v1.0.0
+   git tag -a v1.0.0 -m "Release v1.0.0: Brief description of changes"
    git push origin v1.0.0
    ```
 
 4. GitHub Actions will automatically:
    - Run all tests
-   - Build the monitor Docker image and push it to GitHub Container Registry
+   - Build the monitor Docker image and push it to GitHub Container Registry with version tags
    - Build the CLI binaries for all supported platforms
    - Create a GitHub Release with the binaries attached
+
+Note: The full build process only runs when pushing a tag that starts with 'v'. Pushes to the main branch or pull requests will only run tests without building or publishing artifacts.
 
 ### Manual Release Process
 
