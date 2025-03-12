@@ -222,7 +222,7 @@ func main() {
 					}
 
 					// Add to domain provider for certificate management if we have a cert manager
-					if certManager != nil {
+					if certManager != nil && domainWatcher != nil {
 						domainProvider.AddContainer(container.ID, domains)
 						// Trigger domain sync
 						go domainWatcher.SyncDomains()
@@ -296,10 +296,12 @@ func main() {
 				deploymentID := container.Config.Labels["turkis.deployment"]
 				
 				// Remove from domain provider for certificate management
-				if !noTLS {
+				if !noTLS && domainProvider != nil {
 					domainProvider.RemoveContainer(container.ID)
-					// Trigger domain sync
-					go domainWatcher.SyncDomains()
+					// Trigger domain sync only if domainWatcher is initialized
+					if domainWatcher != nil {
+						go domainWatcher.SyncDomains()
+					}
 				}
 
 				if appName != "" {
@@ -420,7 +422,9 @@ func main() {
 				// Sync domains with certificate manager if we have one
 				if certManager != nil {
 					domainWatcher = certificates.NewDomainWatcher(certManager, domainProvider)
-					domainWatcher.SyncDomains()
+					if domainWatcher != nil {
+						domainWatcher.SyncDomains()
+					}
 				}
 			}
 		
