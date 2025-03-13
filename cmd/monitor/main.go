@@ -197,7 +197,7 @@ func main() {
 
 				// Check for email label and initialize certificate manager if needed
 				if !noTLS {
-					email, hasEmail := container.Config.Labels["turkis.tls.email"]
+					email, hasEmail := container.Config.Labels["turkis.acme.email"]
 					if hasEmail && email != "" && certManager == nil {
 						// Initialize certificate manager with email from container label
 						certConfig := certificates.Config{
@@ -232,7 +232,7 @@ func main() {
 						// Trigger domain sync
 						go domainWatcher.SyncDomains()
 					} else {
-						logger.Warn("Certificate manager not initialized - TLS is enabled but no container with turkis.tls.email label found")
+						logger.Warn("Certificate manager not initialized - TLS is enabled but no container with turkis.acme.email label found")
 					}
 				}
 
@@ -297,7 +297,7 @@ func main() {
 				}
 
 				// Extract app name and deployment ID from labels
-				appName := container.Config.Labels["turkis.app"]
+				appName := container.Config.Labels["turkis.appName"]
 				deploymentID := container.Config.Labels["turkis.deployment"]
 
 				// Remove from domain provider for certificate management
@@ -337,8 +337,8 @@ func main() {
 
 			for _, containerSummary := range containers {
 				// Check if container is on our network
-				isOnNetwork, err := isContainerOnNetwork(ctx, dockerClient, containerSummary.ID, config.DockerNetwork)
-				if err != nil || !isOnNetwork {
+				eligible, err := isContainerEligible(ctx, dockerClient, containerSummary.ID)
+				if err != nil || !eligible {
 					continue
 				}
 
@@ -372,8 +372,8 @@ func main() {
 				// Add all running containers to domain provider
 				for _, containerSummary := range containers {
 					// Skip if not on our network
-					isOnNetwork, err := isContainerOnNetwork(ctx, dockerClient, containerSummary.ID, config.DockerNetwork)
-					if err != nil || !isOnNetwork {
+					eligible, err := isContainerEligible(ctx, dockerClient, containerSummary.ID)
+					if err != nil || !eligible {
 						continue
 					}
 
@@ -384,7 +384,7 @@ func main() {
 
 					// Check for email label to initialize certificate manager if needed
 					if certManager == nil {
-						if email, hasEmail := container.Config.Labels["turkis.tls.email"]; hasEmail && email != "" {
+						if email, hasEmail := container.Config.Labels["turkis.acme.email"]; hasEmail && email != "" {
 							emailFound = true
 
 							// Initialize certificate manager with email from container label
@@ -421,7 +421,7 @@ func main() {
 				}
 
 				if !emailFound && certManager == nil {
-					logger.Warn("Certificate manager not initialized - no container with turkis.tls.email label found")
+					logger.Warn("Certificate manager not initialized - no container with turkis.acme.email label found")
 				}
 
 				// Sync domains with certificate manager if we have one
@@ -464,13 +464,13 @@ func listenForDockerEvents(ctx context.Context, dockerClient *client.Client, eve
 		case event := <-events:
 			// Only process events for containers on our network
 			if event.Action == "start" || event.Action == "die" || event.Action == "stop" || event.Action == "kill" {
-				isOnNetwork, err := isContainerOnNetwork(ctx, dockerClient, event.Actor.ID, config.DockerNetwork)
+				eligible, err := isContainerEligible(ctx, dockerClient, event.Actor.ID)
 				if err != nil {
-					log.Printf("Error checking container network: %v", err)
+					log.Printf("Error checking if we should handle container: %v", err)
 					continue
 				}
 
-				if isOnNetwork {
+				if eligible {
 					// log.Printf("Container %s event on network %s: %s", event.Action, config.DockerNetwork, event.Actor.ID[:12])
 					eventsChan <- event
 					// TODO: remove this else block. It is only for testing.
@@ -494,15 +494,22 @@ func listenForDockerEvents(ctx context.Context, dockerClient *client.Client, eve
 	}
 }
 
-// isContainerOnNetwork checks if a container is connected to the specified network
-func isContainerOnNetwork(ctx context.Context, dockerClient *client.Client, containerID, networkName string) (bool, error) {
+// isContainerEligible checks if a container should be handled by turkis.
+func isContainerEligible(ctx context.Context, dockerClient *client.Client, containerID string) (bool, error) {
 	container, err := dockerClient.ContainerInspect(ctx, containerID)
 	if err != nil {
 		return false, err
 	}
 
+	// check if container has the ignore label.
+	if container.Config.Labels["turkis.ignore"] == "true" {
+		fmt.Printf("Container %s has turkis.ignore label, skipping\n", container.ID[:12])
+		return false, nil
+	}
+
+	// Check if container is on our network
 	for netName := range container.NetworkSettings.Networks {
-		if netName == networkName {
+		if netName == config.DockerNetwork {
 			return true, nil
 		}
 	}

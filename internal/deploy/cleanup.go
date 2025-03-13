@@ -9,7 +9,7 @@ import (
 )
 
 func StopOldContainers(appName, newContainerID, newDeploymentID string) error {
-	out, err := exec.Command("docker", "ps", "--filter", fmt.Sprintf("label=turkis.app=%s", appName), "--format", "{{.ID}}").Output()
+	out, err := exec.Command("docker", "ps", "--filter", fmt.Sprintf("label=turkis.appName=%s", appName), "--format", "{{.ID}}").Output()
 	if err != nil {
 		return err
 	}
@@ -38,7 +38,7 @@ func StopOldContainers(appName, newContainerID, newDeploymentID string) error {
 }
 
 func PruneOldContainers(appName, newContainerID string, keepCount int) error {
-	out, err := exec.Command("docker", "ps", "-a", "--filter", fmt.Sprintf("label=turkis.app=%s", appName), "--format", "{{.ID}}").CombinedOutput()
+	out, err := exec.Command("docker", "ps", "-a", "--filter", fmt.Sprintf("label=turkis.appName=%s", appName), "--format", "{{.ID}}").CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to list containers: %w - output: %s", err, string(out))
 	}

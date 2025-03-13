@@ -5,8 +5,8 @@ import (
 	"os/exec"
 	"strings"
 
-	dnsutil "github.com/ameistad/turkis/internal"
 	"github.com/ameistad/turkis/internal/config"
+	"github.com/ameistad/turkis/internal/helpers"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
@@ -77,7 +77,7 @@ func showAppStatus(app *config.AppConfig) error {
 	var domainLines []string
 	for _, d := range app.Domains {
 		// Canonical domain.
-		ip, err := dnsutil.GetARecord(d.Domain)
+		ip, err := helpers.GetARecord(d.Domain)
 		if err != nil {
 			domainLines = append(domainLines, fmt.Sprintf("  - %s -> %s", d.Domain, color.RedString("no A record found")))
 		} else {
@@ -86,7 +86,7 @@ func showAppStatus(app *config.AppConfig) error {
 
 		// Aliases, if any.
 		for _, alias := range d.Aliases {
-			ipAlias, err := dnsutil.GetARecord(alias)
+			ipAlias, err := helpers.GetARecord(alias)
 			if err != nil {
 				domainLines = append(domainLines, fmt.Sprintf("  - %s -> %s", alias, color.RedString("no A record found")))
 			} else {

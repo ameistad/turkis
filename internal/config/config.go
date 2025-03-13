@@ -18,6 +18,8 @@ const (
 	ConfigFileName = "apps.yml"
 )
 
+// Defaults to ~/.config/turkis
+// If TURKIS_CONFIG_PATH is set, it will use that instead.
 func DefaultConfigDirPath() (string, error) {
 	// First check if TURKIS_CONFIG_PATH is set.
 	if envPath, ok := os.LookupEnv("TURKIS_CONFIG_PATH"); ok && envPath != "" {
@@ -83,6 +85,7 @@ func (d *Domain) UnmarshalYAML(value *yaml.Node) error {
 type AppConfig struct {
 	Name              string            `yaml:"name"`
 	Domains           []Domain          `yaml:"domains"`
+	ACMEEmail         string            `yaml:"acmeEmail"`
 	Dockerfile        string            `yaml:"dockerfile"`
 	BuildContext      string            `yaml:"buildContext"`
 	Env               map[string]string `yaml:"env"`
@@ -91,14 +94,8 @@ type AppConfig struct {
 	HealthCheckPath   string            `yaml:"healthCheckPath,omitempty"`
 }
 
-// TraefikConfig contains global Traefik settings.
-type TLSConfig struct {
-	Email string `yaml:"email"`
-}
-
 // Config represents the overall configuration.
 type Config struct {
-	TLS  TLSConfig   `yaml:"tls"`
 	Apps []AppConfig `yaml:"apps"`
 }
 

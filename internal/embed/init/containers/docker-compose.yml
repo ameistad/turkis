@@ -1,14 +1,16 @@
 services:
   haproxy:
     image: haproxy:3.1.5
+    labels:
+      - "turkis.ignore=true"
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
-      - cert-storage:/usr/local/etc/haproxy/certs:rw
-      - webroot-storage:/var/www/lego:rw
-      - haproxy-socket:/var/run/haproxy:rw
+      - ./cert-storage:/usr/local/etc/haproxy/certs:rw
+      - ./webroot-storage:/var/www/lego:rw
+      - ./haproxy-socket:/var/run/haproxy:rw
     # Add user root to ensure proper socket permissions
     user: root
     networks:
@@ -16,15 +18,17 @@ services:
 
   monitor:
     image: ghcr.io/ameistad/turkis-monitor:latest
+    labels:
+      - "turkis.ignore=true"
     container_name: monitor
     # Add group_add to allow Docker socket access
     group_add:
       - "${DOCKER_GID:-999}"  # Default to 999 if not set
     volumes:
       - ./config:/config
-      - haproxy-socket:/var/run/haproxy:rw
-      - cert-storage:/etc/haproxy/certs:rw
-      - webroot-storage:/var/www/lego:rw
+      - ./haproxy-socket:/var/run/haproxy:rw
+      - ./cert-storage:/usr/local/etc/haproxy/certs:rw
+      - ./webroot-storage:/var/www/lego:rw
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
       - "127.0.0.1:8080:80"
@@ -32,7 +36,6 @@ services:
       - TURKIS_CONFIG_PATH=/config
       # Set to true to use staging server for testing (for Let's Encrypt)
       - LEGO_STAGING=${LEGO_STAGING:-false}
-      # TLS is now configured via container labels - see apps.yml
     # Set user to root to ensure proper permissions for certificate directories
     user: root
     networks:
@@ -40,16 +43,8 @@ services:
     depends_on:
       - haproxy
 
-volumes:
-  cert-storage:
-  haproxy-socket:
-  webroot-storage:
-
 networks:
   turkis-network:
     name: turkis-public
-    # This network is used both by the HAProxy/monitor and by deployed apps
-    # The network name must match DockerNetwork in config.go (turkis-public)
-    # We mark it as external since it's created by the setup.sh script
-    # This suppresses warnings about the network not being created by compose
+    # This network is external, as created by your setup.sh script.
     external: true

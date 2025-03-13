@@ -1,5 +1,3 @@
-tls:
-  email: "{{ .TLS.Email }}"
 apps:
   - name: "turkis-test"
     domains:
@@ -7,26 +5,8 @@ apps:
         aliases:
           - "www.example.com"
       - "test.example.com"
-    dockerfile: "~/.config/turkis/test-website/Dockerfile"
-    buildContext: "~/.config/turkis/test-website"
-    env:
-      NGINX_HOST: "example.com"
+    acmeEmail: "tls@example.com"
+    dockerfile: "{{ .ConfigDirPath }}/test-website/Dockerfile"
+    buildContext: "{{ .ConfigDirPath }}/test-website"
     keepOldContainers: 3
     healthCheckPath: "/health.html"
-
-  # Example app configuration (for reference)
-  - name: "example-app"
-    domains:
-      - domain: "domain.com"
-        aliases:
-          - "www.domain.com"
-          - "m.domain.com"
-      - "api.domain.com"
-    dockerfile: "/path/to/your/Dockerfile"
-    buildContext: "/path/to/your/app"
-    env:
-      NODE_ENV: "production"
-    keepOldContainers: 3
-    volumes:
-      - "/host/path:/container/path"
-      - "/another/host/path:/another/container/path"

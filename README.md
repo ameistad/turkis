@@ -252,6 +252,18 @@ If you need to build releases manually:
    docker push ghcr.io/ameistad/turkis-monitor:latest
    ```
 
+
+### List of labels that turkis will use to configure HAProxy.
+
+Turkis uses the following Docker container labels to configure HAProxy:
+- `turkis.ignore` - If set to true turkis will ignore the container (default: false) 
+- `turkis.appName` - Identifies the application name
+- `turkis.deployment` - Identifies the deployment ID
+- `turkis.domains.all` - A comma-separated list of all domains
+- `turkis.domain.<index>` - The canonical domain name for the specified index
+- `turkis.domain.<index>.alias.<alias_index>` - Domain aliases that should redirect to the canonical domain
+
+
 ## License
 
 [MIT License](LICENSE)

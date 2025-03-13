@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/ameistad/turkis/internal/helpers"
 )
 
 // ValidateDomain checks that a domain string is not empty and has a basic valid structure.
@@ -39,10 +41,6 @@ func ValidateHealthCheckPath(path string) error {
 
 // ValidateConfigFile checks that the Config is well-formed.
 func ValidateConfigFile(conf *Config) error {
-	if conf.TLS.Email == "" {
-		return errors.New("tls acme email is missing in config")
-	}
-
 	// Validate apps.
 	if len(conf.Apps) == 0 {
 		return errors.New("no apps defined in config")
@@ -63,6 +61,12 @@ func ValidateConfigFile(conf *Config) error {
 					return fmt.Errorf("app '%s', alias '%s': %w", app.Name, alias, err)
 				}
 			}
+		}
+		if len(app.ACMEEmail) == 0 {
+			return fmt.Errorf("app '%s': missing ACME email used to get TLS certificates", app.Name)
+		}
+		if !helpers.IsValidEmail(app.ACMEEmail) {
+			return fmt.Errorf("app '%s': invalid ACME email '%s'", app.Name, app.ACMEEmail)
 		}
 		if app.Dockerfile == "" {
 			return fmt.Errorf("app '%s': missing dockerfile path", app.Name)

@@ -22,14 +22,14 @@ type ContainerDomains struct {
 // ParseContainerDomains extracts domains from container labels
 func ParseContainerDomains(containerLabels map[string]string) (ContainerDomains, error) {
 	result := ContainerDomains{
-		AppName:      containerLabels["turkis.app"],
+		AppName:      containerLabels["turkis.appName"],
 		DeploymentID: containerLabels["turkis.deployment"],
 		Domains:      []Domain{},
 	}
 
 	// Validate that we have the required labels
 	if result.AppName == "" {
-		return ContainerDomains{}, fmt.Errorf("container labels missing required 'turkis.app' label")
+		return ContainerDomains{}, fmt.Errorf("container labels missing required 'turkis.appName' label")
 	}
 
 	// Parse the all-domains list if available

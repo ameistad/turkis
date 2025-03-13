@@ -8,9 +8,9 @@ DEPLOYMENT_ID=$(date +%Y%m%d%H%M%S)
 
 docker run --name my-nginx-container-${DEPLOYMENT_ID} \
   --network turkis-public \
-  -l "turkis.app=my-nginx-container" \
+  -l "turkis.appName=my-nginx-container" \
   -l "turkis.deployment=${DEPLOYMENT_ID}" \
-  -l "turkis.tls.email=test@turkis.dev" \
+  -l "turkis.acme.email=test@turkis.dev" \
   -l "turkis.domain.0=domain.com" \
   -l "turkis.domain.0.canonical=domain.com" \
   -l "turkis.domain.0.alias.0=www.domain.com" \

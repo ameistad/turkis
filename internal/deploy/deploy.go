@@ -76,7 +76,7 @@ func runContainer(imageName string, appConfig *config.AppConfig) (string, string
 	labels := make(map[string]string)
 
 	// Add identification labels
-	labels["turkis.app"] = appConfig.Name
+	labels["turkis.appName"] = appConfig.Name
 	labels["turkis.deployment"] = deploymentID
 
 	// Add health check path if specified
@@ -86,13 +86,7 @@ func runContainer(imageName string, appConfig *config.AppConfig) (string, string
 
 	// Add drain time (default 10s)
 	labels["turkis.drain-time"] = "10s"
-	
-	// Add TLS email from the special environment variable we set earlier
-	if tlsEmail, ok := appConfig.Env["__TURKIS_TLS_EMAIL"]; ok && tlsEmail != "" {
-		labels["turkis.tls.email"] = tlsEmail
-		// Remove the special env var so it doesn't get passed to the container
-		delete(appConfig.Env, "__TURKIS_TLS_EMAIL")
-	}
+	labels["turkis.acme.email"] = appConfig.ACMEEmail
 
 	// Add domains and their aliases
 	addDomainLabels(labels, appConfig.Domains)
@@ -122,7 +116,7 @@ func runContainer(imageName string, appConfig *config.AppConfig) (string, string
 			return "", "", fmt.Errorf("failed to create network %s: %w", config.DockerNetwork, err)
 		}
 	}
-	
+
 	// Attach the container to the network.
 	args = append(args, "--network", config.DockerNetwork)
 

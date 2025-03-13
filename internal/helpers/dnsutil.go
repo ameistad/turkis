@@ -1,4 +1,4 @@
-package dnsutil
+package helpers
 
 import (
 	"fmt"

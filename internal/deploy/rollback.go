@@ -29,7 +29,7 @@ func RollbackToContainer(currentContainerID, targetContainerID string, healthChe
 
 func SortedContainerInfo(appConfig *config.AppConfig) ([]ContainerInfo, error) {
 	out, err := exec.Command("docker", "ps", "-a",
-		"--filter", fmt.Sprintf("label=turkis.app=%s", appConfig.Name),
+		"--filter", fmt.Sprintf("label=turkis.appName=%s", appConfig.Name),
 		"--format", "{{.ID}}").Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list containers: %w", err)

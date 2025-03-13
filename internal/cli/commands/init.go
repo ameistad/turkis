@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
 	"text/template"
 
 	"github.com/ameistad/turkis/internal/config"
@@ -36,7 +35,7 @@ func InitCmd() *cobra.Command {
 			}
 
 			// Prompt the user for email and update apps.yml.
-			if err := promptForEmailAndUpdateConfig(); err != nil {
+			if err := updateConfig(); err != nil {
 				return err
 			}
 
@@ -97,31 +96,26 @@ func copyTemplates(dst string) error {
 	})
 }
 
-func isValidEmail(email string) bool {
-	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
-	return emailRegex.MatchString(email)
-}
-
 // promptForEmailAndUpdateConfig prompts the user for an email and replaces the email in the config file
-func promptForEmailAndUpdateConfig() error {
+func updateConfig() error {
 	// Prompt for email with validation
-	var email string
-	for {
-		fmt.Print("Enter email for Let's Encrypt TLS certificates: ")
-		if _, err := fmt.Scanln(&email); err != nil {
-			if err.Error() == "unexpected newline" {
-				fmt.Println("Email cannot be empty")
-				continue
-			}
-			return fmt.Errorf("failed to read email input: %w", err)
-		}
+	// var email string
+	// for {
+	// 	fmt.Print("Enter email for Let's Encrypt TLS certificates: ")
+	// 	if _, err := fmt.Scanln(&email); err != nil {
+	// 		if err.Error() == "unexpected newline" {
+	// 			fmt.Println("Email cannot be empty")
+	// 			continue
+	// 		}
+	// 		return fmt.Errorf("failed to read email input: %w", err)
+	// 	}
 
-		if !isValidEmail(email) {
-			fmt.Println("Please enter a valid email address")
-			continue
-		}
-		break
-	}
+	// 	if !helpers.IsValidEmail(email) {
+	// 		fmt.Println("Please enter a valid email address")
+	// 		continue
+	// 	}
+	// 	break
+	// }
 
 	// Get the full path to apps.yml.
 	configFile, err := config.DefaultConfigFilePath()
@@ -146,11 +140,13 @@ func promptForEmailAndUpdateConfig() error {
 
 	// Execute template with data
 	templateData := struct {
-		TLS struct {
-			Email string
-		}
+		ConfigDirPath string
 	}{}
-	templateData.TLS.Email = email
+	configDirPath, err := config.DefaultConfigDirPath()
+	if err != nil {
+		return fmt.Errorf("failed to write updated config file: %w", err)
+	}
+	templateData.ConfigDirPath = configDirPath
 
 	if err := tmpl.Execute(&buf, templateData); err != nil {
 		return fmt.Errorf("failed to execute template: %w", err)
