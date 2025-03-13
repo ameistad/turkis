@@ -34,7 +34,7 @@ const (
 	// RefreshInterval is how often to refresh the full configuration
 	RefreshInterval = 5 * time.Minute
 	// CertificatesDir is the directory where certificates are stored
-	CertificatesDir = "/etc/haproxy/certs"
+	CertificatesDir = "/usr/local/etc/haproxy/certs"
 	// WebRootDir is the directory for ACME HTTP-01 challenges
 	WebRootDir = "/var/www/lego"
 	// CertRefreshInterval is how often to check for certificate renewals
@@ -503,7 +503,6 @@ func isContainerEligible(ctx context.Context, dockerClient *client.Client, conta
 
 	// check if container has the ignore label.
 	if container.Config.Labels["turkis.ignore"] == "true" {
-		fmt.Printf("Container %s has turkis.ignore label, skipping\n", container.ID[:12])
 		return false, nil
 	}
 

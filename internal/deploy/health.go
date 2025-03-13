@@ -9,6 +9,12 @@ import (
 )
 
 // HealthCheckContainer performs an HTTP health check on the specified container.
+// TODO: this function is not very robust and should be improved.
+// consider using docker client library instead of exec.Command
+// consider using a more robust health check mechanism
+// consider using a more robust way to get the container's IP address and extract it to a separate function.
+// consider using a more robust way to connect the container to the network and extract it to a separate function.
+// consider using a more robust way to get the health check path and extract it to a separate function.
 func HealthCheckContainer(containerID, healthCheckPath string) error {
 	// First try to get the container's IP address on turkis-public network
 	cmd := exec.Command("docker", "inspect",
@@ -23,7 +29,7 @@ func HealthCheckContainer(containerID, healthCheckPath string) error {
 		if connectErr := connectCmd.Run(); connectErr != nil {
 			return fmt.Errorf("failed to connect container to turkis-public network: %w", connectErr)
 		}
-		
+
 		// Try again after connecting
 		cmd = exec.Command("docker", "inspect",
 			"--format", "{{.NetworkSettings.Networks.turkis-public.IPAddress}}",
@@ -42,7 +48,7 @@ func HealthCheckContainer(containerID, healthCheckPath string) error {
 		if inspectErr == nil {
 			fmt.Printf("Available networks for container: %s\n", string(inspectOutput))
 		}
-		
+
 		return fmt.Errorf("container has no IP address on turkis-public network")
 	}
 
