@@ -2,8 +2,8 @@ package certificates
 
 import (
 	"context"
-	"crypto/tls"
 	"crypto"
+	"crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"os"
@@ -36,7 +36,7 @@ type Config struct {
 	Logger *logrus.Logger
 
 	// Staging mode for testing
-	Staging bool
+	TlsStaging bool
 }
 
 // Domain represents a domain for which we need a certificate
@@ -119,12 +119,12 @@ func NewManager(cfg Config) (*Manager, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	m := &Manager{
-		config:     cfg,
-		logger:     cfg.Logger,
-		user:       user,
-		domains:    make(map[string]*Domain),
-		ctx:        ctx,
-		cancel:     cancel,
+		config:  cfg,
+		logger:  cfg.Logger,
+		user:    user,
+		domains: make(map[string]*Domain),
+		ctx:     ctx,
+		cancel:  cancel,
 	}
 
 	// Initialize Lego client
@@ -140,20 +140,20 @@ func NewManager(cfg Config) (*Manager, error) {
 func (m *Manager) initClient() error {
 	// Create Lego config
 	config := lego.NewConfig(m.user)
-	
+
 	// Use staging server if in staging mode
-	if m.config.Staging {
+	if m.config.TlsStaging {
 		config.CADirURL = lego.LEDirectoryStaging
 	} else {
 		config.CADirURL = lego.LEDirectoryProduction
 	}
-	
+
 	// Create client
 	client, err := lego.NewClient(config)
 	if err != nil {
 		return fmt.Errorf("failed to create lego client: %w", err)
 	}
-	
+
 	// Configure HTTP challenge provider using a server that listens on port 8080
 	// HAProxy is configured to forward /.well-known/acme-challenge/* requests to this server
 	httpProvider := http01.NewProviderServer("", "8080")
@@ -161,7 +161,7 @@ func (m *Manager) initClient() error {
 	if err != nil {
 		return fmt.Errorf("failed to set HTTP challenge provider: %w", err)
 	}
-	
+
 	m.client = client
 	return nil
 }
@@ -174,10 +174,10 @@ func (m *Manager) Start() error {
 		return fmt.Errorf("failed to register account: %w", err)
 	}
 	m.user.Registration = reg
-	
+
 	// Start goroutine for certificate renewal checks
 	go m.renewalLoop()
-	
+
 	return nil
 }
 
@@ -190,10 +190,10 @@ func (m *Manager) Stop() {
 func (m *Manager) renewalLoop() {
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
-	
+
 	// Do an initial check
 	m.checkRenewals()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -212,7 +212,7 @@ func (m *Manager) checkRenewals() {
 		domains = append(domains, domain)
 	}
 	m.domainMutex.RUnlock()
-	
+
 	for _, domain := range domains {
 		// Check if certificate exists and needs renewal
 		certFile := filepath.Join(m.config.CertDir, domain.Name+".crt")
@@ -222,7 +222,7 @@ func (m *Manager) checkRenewals() {
 			m.obtainCertificate(domain)
 			continue
 		}
-		
+
 		// Load cert to check expiry
 		cert, err := tls.LoadX509KeyPair(
 			filepath.Join(m.config.CertDir, domain.Name+".crt"),
@@ -232,19 +232,19 @@ func (m *Manager) checkRenewals() {
 			m.logger.Errorf("Failed to load certificate for %s: %v", domain.Name, err)
 			continue
 		}
-		
+
 		// Check if certificate is about to expire (30 days threshold)
 		if len(cert.Certificate) == 0 {
 			m.logger.Errorf("Invalid certificate for %s", domain.Name)
 			continue
 		}
-		
+
 		parsedCert, err := x509.ParseCertificate(cert.Certificate[0])
 		if err != nil {
 			m.logger.Errorf("Failed to parse certificate for %s: %v", domain.Name, err)
 			continue
 		}
-		
+
 		// Renew if certificate expires in less than 30 days
 		if time.Until(parsedCert.NotAfter) < 30*24*time.Hour {
 			m.logger.Infof("Certificate for %s expires soon, renewing", domain.Name)
@@ -258,28 +258,28 @@ func (m *Manager) obtainCertificate(domain *Domain) {
 	// Prepare domains list (main domain + aliases)
 	domains := []string{domain.Name}
 	domains = append(domains, domain.Aliases...)
-	
+
 	m.logger.Infof("Obtaining certificate for domains: %v", domains)
-	
+
 	// Request certificate
 	request := certificate.ObtainRequest{
 		Domains: domains,
 		Bundle:  true,
 	}
-	
+
 	certificates, err := m.client.Certificate.Obtain(request)
 	if err != nil {
 		m.logger.Errorf("Failed to obtain certificate for %s: %v", domain.Name, err)
 		return
 	}
-	
+
 	// Save the certificate
 	err = m.saveCertificate(domain.Name, certificates)
 	if err != nil {
 		m.logger.Errorf("Failed to save certificate for %s: %v", domain.Name, err)
 		return
 	}
-	
+
 	// Notify HAProxy
 	err = m.notifyHAProxy(domain.Name)
 	if err != nil {
@@ -301,22 +301,22 @@ func (m *Manager) saveCertificate(domain string, cert *certificate.Resource) err
 	if err := os.WriteFile(certPath, cert.Certificate, 0644); err != nil {
 		return fmt.Errorf("failed to save certificate: %w", err)
 	}
-	
+
 	// Save private key
 	keyPath := filepath.Join(m.config.CertDir, domain+".key")
 	if err := os.WriteFile(keyPath, cert.PrivateKey, 0600); err != nil {
 		return fmt.Errorf("failed to save private key: %w", err)
 	}
-	
+
 	// Create HAProxy PEM (concat cert and key)
 	pemPath := filepath.Join(m.config.CertDir, domain+".pem")
 	pemContent := append(cert.Certificate, '\n')
 	pemContent = append(pemContent, cert.PrivateKey...)
-	
+
 	if err := os.WriteFile(pemPath, pemContent, 0600); err != nil {
 		return fmt.Errorf("failed to save PEM file: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -324,7 +324,7 @@ func (m *Manager) saveCertificate(domain string, cert *certificate.Resource) err
 func (m *Manager) notifyHAProxy(domain string) error {
 	// Create HAProxy notifier
 	notifier := NewHAProxyNotifier(m.config.HAProxySocket, m.config.CertDir)
-	
+
 	// Notify HAProxy about the certificate change
 	return notifier.NotifyCertChange(domain)
 }
@@ -333,14 +333,14 @@ func (m *Manager) notifyHAProxy(domain string) error {
 func (m *Manager) AddDomain(domain *Domain) {
 	m.domainMutex.Lock()
 	defer m.domainMutex.Unlock()
-	
+
 	// Skip if we're already managing this domain
 	if _, exists := m.domains[domain.Name]; exists {
 		return
 	}
-	
+
 	m.domains[domain.Name] = domain
-	
+
 	// Start a goroutine to obtain certificate if needed
 	go func() {
 		// Check if certificate exists
@@ -356,7 +356,7 @@ func (m *Manager) AddDomain(domain *Domain) {
 func (m *Manager) RemoveDomain(domainName string) {
 	m.domainMutex.Lock()
 	defer m.domainMutex.Unlock()
-	
+
 	delete(m.domains, domainName)
 	// Note: We don't delete the certificate files as they might be needed again
 }

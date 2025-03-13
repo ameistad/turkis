@@ -45,7 +45,7 @@ var (
 	// Track the latest known deployment ID for each app
 	deploymentRegistry     = make(map[string]string) // app name -> deployment ID
 	deploymentRegistryLock sync.RWMutex
-	
+
 	// Logger for certificate manager
 	logger = logrus.New()
 )
@@ -54,7 +54,7 @@ func main() {
 	// Parse command line flags
 	dryRunFlag := flag.Bool("dry-run", false, "Run in dry-run mode (don't actually send commands to HAProxy)")
 	noTLSFlag := flag.Bool("no-tls", false, "Disable TLS certificate management")
-	stagingFlag := flag.Bool("staging", false, "Use Let's Encrypt staging environment")
+	tlsStagingFlag := flag.Bool("tls-staging", false, "Use Let's Encrypt staging environment")
 	flag.Parse()
 
 	// Configure logger
@@ -65,12 +65,12 @@ func main() {
 	// Check both flag and environment variables
 	dryRunEnv := os.Getenv("DRY_RUN") == "true"
 	dryRun := *dryRunFlag || dryRunEnv
-	
+
 	noTLSEnv := os.Getenv("NO_TLS") == "true"
 	noTLS := *noTLSFlag || noTLSEnv
-	
-	stagingEnv := os.Getenv("LEGO_STAGING") == "true"
-	staging := *stagingFlag || stagingEnv
+
+	tlsStagingEnv := os.Getenv("TLS_STAGING") == "true"
+	tlsStaging := *tlsStagingFlag || tlsStagingEnv
 
 	if dryRun {
 		fmt.Println("========================")
@@ -78,7 +78,7 @@ func main() {
 		fmt.Println("No changes will be made to HAProxy configuration")
 		fmt.Println("========================")
 	}
-	
+
 	if noTLS {
 		fmt.Println("========================")
 		fmt.Println("TLS CERTIFICATE MANAGEMENT DISABLED")
@@ -86,14 +86,19 @@ func main() {
 		fmt.Println("========================")
 	}
 
-	// Initialize Docker client
+	if tlsStaging {
+		fmt.Println("========================")
+		fmt.Println("TLS CERTIFICATE STAGING ENABLED")
+		fmt.Println("Using Let's Encrypt staging environment")
+		fmt.Println("========================")
+	}
+
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		log.Fatalf("Failed to create Docker client: %v", err)
 	}
 	defer dockerClient.Close()
 
-	// Initialize HAProxy client
 	var haproxyClient *haproxy.Client
 	if dryRun {
 		// In dry run mode, use an empty string for socket path since it won't be used
@@ -115,11 +120,11 @@ func main() {
 
 	// Initialize domain provider for certificate manager
 	domainProvider := monitor.NewDomainProvider()
-	
+
 	// Initialize certificate manager if TLS is enabled
 	var certManager *certificates.Manager
 	var domainWatcher *certificates.DomainWatcher
-	
+
 	if !noTLS {
 		// Certificate manager will be initialized when we get an email address from container labels
 		certManager = nil
@@ -131,7 +136,7 @@ func main() {
 	// Start periodic full refresh
 	refreshTicker := time.NewTicker(RefreshInterval)
 	defer refreshTicker.Stop()
-	
+
 	// Start certificate refresh ticker if TLS is enabled
 	var certRefreshTicker *time.Ticker
 	if !noTLS {
@@ -189,7 +194,7 @@ func main() {
 					log.Printf("Container %s has no domains configured, skipping", container.ID[:12])
 					continue
 				}
-				
+
 				// Check for email label and initialize certificate manager if needed
 				if !noTLS {
 					email, hasEmail := container.Config.Labels["turkis.tls.email"]
@@ -201,23 +206,23 @@ func main() {
 							WebRootDir:    WebRootDir,
 							HAProxySocket: HAProxySocketPath,
 							Logger:        logger,
-							Staging:       staging,
+							TlsStaging:    tlsStaging,
 						}
-						
+
 						var err error
 						certManager, err = certificates.NewManager(certConfig)
 						if err != nil {
 							logger.Fatalf("Failed to initialize certificate manager: %v", err)
 						}
-						
+
 						// Start certificate manager
 						if err := certManager.Start(); err != nil {
 							logger.Fatalf("Failed to start certificate manager: %v", err)
 						}
-						
+
 						// Initialize domain watcher
 						domainWatcher = certificates.NewDomainWatcher(certManager, domainProvider)
-						
+
 						logger.Infof("Certificate manager initialized and started with email: %s", email)
 					}
 
@@ -294,7 +299,7 @@ func main() {
 				// Extract app name and deployment ID from labels
 				appName := container.Config.Labels["turkis.app"]
 				deploymentID := container.Config.Labels["turkis.deployment"]
-				
+
 				// Remove from domain provider for certificate management
 				if !noTLS && domainProvider != nil {
 					domainProvider.RemoveContainer(container.ID)
@@ -355,15 +360,15 @@ func main() {
 			}
 
 			log.Println("HAProxy configuration refresh completed")
-			
+
 			// Update domain provider with current containers
 			if !noTLS {
 				// Reset domain provider to ensure it's in sync with running containers
 				domainProvider = monitor.NewDomainProvider()
-				
+
 				// Also check for email label in any container
 				var emailFound bool
-				
+
 				// Add all running containers to domain provider
 				for _, containerSummary := range containers {
 					// Skip if not on our network
@@ -371,17 +376,17 @@ func main() {
 					if err != nil || !isOnNetwork {
 						continue
 					}
-					
+
 					container, err := dockerClient.ContainerInspect(ctx, containerSummary.ID)
 					if err != nil {
 						continue
 					}
-					
+
 					// Check for email label to initialize certificate manager if needed
 					if certManager == nil {
 						if email, hasEmail := container.Config.Labels["turkis.tls.email"]; hasEmail && email != "" {
 							emailFound = true
-							
+
 							// Initialize certificate manager with email from container label
 							certConfig := certificates.Config{
 								Email:         email,
@@ -389,36 +394,36 @@ func main() {
 								WebRootDir:    WebRootDir,
 								HAProxySocket: HAProxySocketPath,
 								Logger:        logger,
-								Staging:       staging,
+								TlsStaging:    tlsStaging,
 							}
-							
+
 							var err error
 							certManager, err = certificates.NewManager(certConfig)
 							if err != nil {
 								logger.Fatalf("Failed to initialize certificate manager: %v", err)
 							}
-							
+
 							// Start certificate manager
 							if err := certManager.Start(); err != nil {
 								logger.Fatalf("Failed to start certificate manager: %v", err)
 							}
-							
+
 							logger.Infof("Certificate manager initialized during refresh with email: %s", email)
 						}
 					}
-					
+
 					domains, err := monitor.ParseContainerDomains(container.Config.Labels)
 					if err != nil || len(domains.Domains) == 0 {
 						continue
 					}
-					
+
 					domainProvider.AddContainer(containerSummary.ID, domains)
 				}
-				
+
 				if !emailFound && certManager == nil {
 					logger.Warn("Certificate manager not initialized - no container with turkis.tls.email label found")
 				}
-				
+
 				// Sync domains with certificate manager if we have one
 				if certManager != nil {
 					domainWatcher = certificates.NewDomainWatcher(certManager, domainProvider)
@@ -427,7 +432,7 @@ func main() {
 					}
 				}
 			}
-		
+
 		case <-certRefreshTicker.C:
 			if !noTLS && certManager != nil {
 				// Trigger domain sync to check for certificate renewals

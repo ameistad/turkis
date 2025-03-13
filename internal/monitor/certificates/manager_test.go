@@ -29,7 +29,7 @@ func TestNewManager(t *testing.T) {
 		WebRootDir:    webRootDir,
 		HAProxySocket: filepath.Join(tmpDir, "haproxy.sock"),
 		Logger:        logger,
-		Staging:       true, // Always use staging for tests
+		TlsStaging:    true, // Always use staging for tests
 	}
 
 	// Create manager
@@ -62,17 +62,17 @@ func TestDomainProvider(t *testing.T) {
 
 	// Get domains from provider
 	domains := provider.GetAllDomains()
-	
+
 	// Verify domains are returned correctly
 	if len(domains) != 2 {
 		t.Errorf("Expected 2 domains, got %d", len(domains))
 	}
-	
+
 	// Check specific domains
 	if aliases, ok := domains["example.com"]; !ok || len(aliases) != 1 {
 		t.Errorf("Expected example.com with 1 alias")
 	}
-	
+
 	if aliases, ok := domains["test.com"]; !ok || len(aliases) != 2 {
 		t.Errorf("Expected test.com with 2 aliases")
 	}

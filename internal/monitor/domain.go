@@ -13,10 +13,10 @@ type Domain struct {
 
 // ContainerDomains stores all domains for a container
 type ContainerDomains struct {
-	AppName        string   // Application name
-	DeploymentID   string   // Unique deployment identifier
-	Domains        []Domain // All domains for this container
-	AllDomainsList []string // Flattened list of all domains and aliases
+	AppName        string
+	DeploymentID   string
+	Domains        []Domain
+	AllDomainsList []string
 }
 
 // ParseContainerDomains extracts domains from container labels

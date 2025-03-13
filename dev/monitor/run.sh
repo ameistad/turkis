@@ -7,4 +7,5 @@ docker run -it --rm \
   -v $(pwd):/src \
   --network host \
   -e DRY_RUN=true \
+  -e TLS_STAGING=true \
   turkis-monitor-dev
