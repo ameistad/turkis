@@ -11,6 +11,7 @@ services:
       - ./cert-storage:/usr/local/etc/haproxy/certs:rw
       - ./webroot-storage:/var/www/lego:rw
       - ./haproxy-socket:/var/run/haproxy:rw
+      - ./haproxy-maps:/etc/haproxy/maps:rw
     # Add user root to ensure proper socket permissions
     user: root
     networks:

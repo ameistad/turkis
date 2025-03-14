@@ -56,6 +56,13 @@ mkdir -p haproxy-socket
 chmod -R 777 haproxy-socket
 echo "Socket directory created with proper permissions."
 
+# Set up HAProxy maps directory for domain mapping
+echo "Setting up HAProxy maps directory..."
+mkdir -p haproxy-maps
+touch haproxy-maps/hosts.map haproxy-maps/redirects.map
+chmod -R 777 haproxy-maps
+echo "Maps directory created with proper permissions."
+
 # Set up webroot directory for ACME challenges
 echo "Setting up ACME challenge directory..."
 mkdir -p webroot-storage/.well-known/acme-challenge
