@@ -19,7 +19,7 @@ RUN CGO_ENABLED=0 go build -o /turkis-monitor ./cmd/monitor
 FROM alpine:3.18
 
 # Install ca-certificates for HTTPS and curl for healthchecks
-RUN apk add --no-cache ca-certificates docker-cli
+RUN apk add --no-cache ca-certificates docker-cli socat
 
 # Copy the binary from the builder stage
 COPY --from=builder /turkis-monitor /usr/local/bin/turkis-monitor

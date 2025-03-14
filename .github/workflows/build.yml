@@ -127,10 +127,10 @@ jobs:
         with:
           files: |
             dist/turkis-linux-amd64
-            dist/turkis-linux-arm64
-            dist/turkis-darwin-amd64
-            dist/turkis-darwin-arm64
-            dist/turkis-windows-amd64.exe
+            # dist/turkis-linux-arm64
+            # dist/turkis-darwin-amd64
+            # dist/turkis-darwin-arm64
+            # dist/turkis-windows-amd64.exe
             dist/checksums.txt
           draft: false
           prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
