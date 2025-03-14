@@ -31,16 +31,6 @@ func (h *HAProxyNotifier) NotifyCertChange(domain string) error {
 		return fmt.Errorf("PEM file does not exist for domain %s", domain)
 	}
 
-	// Connect to HAProxy socket
-	conn, err := net.Dial("unix", h.socketPath)
-	if err != nil {
-		return fmt.Errorf("failed to connect to HAProxy socket: %w", err)
-	}
-	defer conn.Close()
-
-	// Set timeout
-	conn.SetDeadline(time.Now().Add(5 * time.Second))
-
 	// Determine if this is a new certificate or an update
 	// First check if the certificate is already loaded
 	cmds := []string{
@@ -51,8 +41,18 @@ func (h *HAProxyNotifier) NotifyCertChange(domain string) error {
 	}
 
 	for _, cmd := range cmds {
+		// Create a new connection for each command
+		conn, err := net.Dial("unix", h.socketPath)
+		if err != nil {
+			return fmt.Errorf("failed to connect to HAProxy socket: %w", err)
+		}
+		
+		// Set timeout
+		conn.SetDeadline(time.Now().Add(5 * time.Second))
+		
 		// Send command to HAProxy
 		if _, err := conn.Write([]byte(cmd + "\n")); err != nil {
+			conn.Close()
 			return fmt.Errorf("failed to send command to HAProxy: %w", err)
 		}
 
@@ -60,8 +60,12 @@ func (h *HAProxyNotifier) NotifyCertChange(domain string) error {
 		buf := make([]byte, 4096)
 		n, err := conn.Read(buf)
 		if err != nil {
+			conn.Close()
 			return fmt.Errorf("failed to read response from HAProxy: %w", err)
 		}
+		
+		// Close the connection after each command
+		conn.Close()
 
 		response := string(buf[:n])
 		if strings.Contains(response, "Unknown command") {

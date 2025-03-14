@@ -474,7 +474,7 @@ func listenForDockerEvents(ctx context.Context, dockerClient *client.Client, eve
 					eventsChan <- event
 					// TODO: remove this else block. It is only for testing.
 				} else {
-					log.Printf("Container %s event not on network: %s", event.Action, event.Actor.ID[:12])
+					log.Printf("Container %s event but not eligible: %s", event.Action, event.Actor.ID[:12])
 				}
 			}
 		case err := <-errs:
