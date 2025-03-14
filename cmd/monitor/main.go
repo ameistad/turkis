@@ -199,7 +199,6 @@ func main() {
 				if !noTLS {
 					email, hasEmail := container.Config.Labels["turkis.acme.email"]
 					if hasEmail && email != "" && certManager == nil {
-						// Initialize certificate manager with email from container label
 						certConfig := certificates.Config{
 							Email:         email,
 							CertDir:       CertificatesDir,

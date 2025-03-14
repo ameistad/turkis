@@ -11,7 +11,6 @@ import (
 	"github.com/ameistad/turkis/internal/monitor"
 )
 
-// BlueGreenConfig represents configuration for a blue-green deployment
 type BlueGreenConfig struct {
 	// Required parameters
 	AppName         string
