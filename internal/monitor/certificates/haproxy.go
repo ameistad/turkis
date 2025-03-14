@@ -31,46 +31,117 @@ func (h *HAProxyNotifier) NotifyCertChange(domain string) error {
 		return fmt.Errorf("PEM file does not exist for domain %s", domain)
 	}
 
-	// Determine if this is a new certificate or an update
-	// First check if the certificate is already loaded
-	cmds := []string{
-		"show ssl cert",          // List certs
-		fmt.Sprintf("new ssl cert %s", pemPath), // Add new cert
-		fmt.Sprintf("set ssl cert %s %s", domain, pemPath), // Update existing cert
-		"commit ssl cert",        // Apply changes
+	// First, check if certificate is already loaded
+	conn1, err := net.Dial("unix", h.socketPath)
+	if err != nil {
+		return fmt.Errorf("failed to connect to HAProxy socket: %w", err)
 	}
+	conn1.SetDeadline(time.Now().Add(5 * time.Second))
+	if _, err := conn1.Write([]byte("show ssl cert\n")); err != nil {
+		conn1.Close()
+		return fmt.Errorf("failed to send command to HAProxy: %w", err)
+	}
+	buf1 := make([]byte, 4096)
+	n1, err := conn1.Read(buf1)
+	conn1.Close()
+	if err != nil {
+		return fmt.Errorf("failed to read response from HAProxy: %w", err)
+	}
+	certListing := string(buf1[:n1])
 
-	for _, cmd := range cmds {
-		// Create a new connection for each command
-		conn, err := net.Dial("unix", h.socketPath)
-		if err != nil {
-			return fmt.Errorf("failed to connect to HAProxy socket: %w", err)
-		}
-		
-		// Set timeout
-		conn.SetDeadline(time.Now().Add(5 * time.Second))
-		
-		// Send command to HAProxy
-		if _, err := conn.Write([]byte(cmd + "\n")); err != nil {
-			conn.Close()
-			return fmt.Errorf("failed to send command to HAProxy: %w", err)
-		}
+	// Create a new connection for adding/updating the certificate
+	conn2, err := net.Dial("unix", h.socketPath)
+	if err != nil {
+		return fmt.Errorf("failed to connect to HAProxy socket: %w", err)
+	}
+	defer conn2.Close()
+	conn2.SetDeadline(time.Now().Add(5 * time.Second))
 
-		// Read response
-		buf := make([]byte, 4096)
-		n, err := conn.Read(buf)
-		if err != nil {
-			conn.Close()
-			return fmt.Errorf("failed to read response from HAProxy: %w", err)
-		}
-		
-		// Close the connection after each command
-		conn.Close()
+	// Add the new certificate (using the absolute path)
+	cmd := fmt.Sprintf("new ssl cert %s\n", pemPath)
+	if _, err := conn2.Write([]byte(cmd)); err != nil {
+		return fmt.Errorf("failed to send command to HAProxy: %w", err)
+	}
+	buf2 := make([]byte, 4096)
+	n2, err := conn2.Read(buf2)
+	if err != nil {
+		return fmt.Errorf("failed to read response from HAProxy: %w", err)
+	}
+	addResponse := string(buf2[:n2])
+	
+	// Create a new connection for associating the certificate with the domain
+	conn3, err := net.Dial("unix", h.socketPath)
+	if err != nil {
+		return fmt.Errorf("failed to connect to HAProxy socket: %w", err)
+	}
+	defer conn3.Close()
+	conn3.SetDeadline(time.Now().Add(5 * time.Second))
+	
+	// Set the certificate for the domain - this binds the cert to the specific domain
+	cmdSet := fmt.Sprintf("set ssl cert %s %s\n", domain, pemPath)
+	if _, err := conn3.Write([]byte(cmdSet)); err != nil {
+		return fmt.Errorf("failed to send set command to HAProxy: %w", err)
+	}
+	buf3 := make([]byte, 4096)
+	n3, err := conn3.Read(buf3)
+	if err != nil {
+		return fmt.Errorf("failed to read response from HAProxy: %w", err)
+	}
+	setResponse := string(buf3[:n3])
 
-		response := string(buf[:n])
-		if strings.Contains(response, "Unknown command") {
+	// Create a new connection for committing the changes
+	conn4, err := net.Dial("unix", h.socketPath)
+	if err != nil {
+		return fmt.Errorf("failed to connect to HAProxy socket: %w", err)
+	}
+	defer conn4.Close()
+	conn4.SetDeadline(time.Now().Add(5 * time.Second))
+	
+	// Commit the changes
+	if _, err := conn4.Write([]byte("commit ssl cert\n")); err != nil {
+		return fmt.Errorf("failed to send commit command to HAProxy: %w", err)
+	}
+	buf4 := make([]byte, 4096)
+	n4, err := conn4.Read(buf4)
+	if err != nil {
+		return fmt.Errorf("failed to read response from HAProxy: %w", err)
+	}
+	commitResponse := string(buf4[:n4])
+
+	// Check for errors in responses
+	for cmd, resp := range map[string]string{
+		"new ssl cert": addResponse,
+		"set ssl cert": setResponse,
+		"commit ssl cert": commitResponse,
+	} {
+		if strings.Contains(resp, "Unknown command") {
 			return fmt.Errorf("HAProxy does not support the command: %s", cmd)
 		}
+	}
+
+	// Update the frontend bind line to include the new certificate
+	conn5, err := net.Dial("unix", h.socketPath)
+	if err != nil {
+		return fmt.Errorf("failed to connect to HAProxy socket: %w", err)
+	}
+	defer conn5.Close()
+	conn5.SetDeadline(time.Now().Add(5 * time.Second))
+	
+	// Add certificate to the SSL frontend
+	updateCmd := fmt.Sprintf("set ssl cert-list 1 %s\n", pemPath)
+	if _, err := conn5.Write([]byte(updateCmd)); err != nil {
+		return fmt.Errorf("failed to send update command to HAProxy: %w", err)
+	}
+	buf5 := make([]byte, 4096)
+	n5, err := conn5.Read(buf5)
+	if err != nil {
+		return fmt.Errorf("failed to read response from HAProxy: %w", err)
+	}
+	updateResponse := string(buf5[:n5])
+	
+	// Check for errors
+	if strings.Contains(updateResponse, "Unknown command") {
+		return fmt.Errorf("HAProxy does not support the set ssl cert-list command")
 	}
 
 	return nil

@@ -71,8 +71,8 @@ echo "Webroot directory created with proper permissions."
 
 # Create initial dummy certificate to help HAProxy start
 echo "Creating initial dummy certificate..."
-openssl req -x509 -newkey rsa:4096 -keyout cert-storage/default.key -out cert-storage/default.crt -days 365 -nodes -subj "/CN=localhost"
-cat cert-storage/default.crt cert-storage/default.key > cert-storage/default.pem
+# Create a combined PEM file directly (cert+key in one file)
+openssl req -x509 -newkey rsa:4096 -days 365 -nodes -keyout cert-storage/default.pem -out cert-storage/default.pem -subj "/CN=localhost"
 chmod 644 cert-storage/default.pem
 echo "Initial certificate created at cert-storage/default.pem"
 

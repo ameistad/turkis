@@ -281,9 +281,12 @@ func (m *Manager) obtainCertificate(domain *Domain) {
 	}
 
 	// Notify HAProxy
+	m.logger.Infof("Notifying HAProxy about new certificate for %s", domain.Name)
 	err = m.notifyHAProxy(domain.Name)
 	if err != nil {
 		m.logger.Errorf("Failed to notify HAProxy about new certificate for %s: %v", domain.Name, err)
+	} else {
+		m.logger.Infof("Successfully notified HAProxy about new certificate for %s", domain.Name)
 	}
 }
 
