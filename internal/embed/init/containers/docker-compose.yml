@@ -21,7 +21,7 @@ services:
     labels:
       - "turkis.ignore=true"
     container_name: monitor
-    # Add group_add to allow Docker socket access
+    # Add group_add to allow Docker socket access for the golang docker client.
     group_add:
       - "${DOCKER_GID:-999}"  # Default to 999 if not set
     volumes:
@@ -46,5 +46,4 @@ services:
 networks:
   turkis-network:
     name: turkis-public
-    # This network is external, as created by your setup.sh script.
     external: true

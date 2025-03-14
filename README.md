@@ -262,6 +262,8 @@ Turkis uses the following Docker container labels to configure HAProxy:
 - `turkis.domains.all` - A comma-separated list of all domains
 - `turkis.domain.<index>` - The canonical domain name for the specified index
 - `turkis.domain.<index>.alias.<alias_index>` - Domain aliases that should redirect to the canonical domain
+- `turkis.health-check-path` - The path to the health check endpoint
+- `turkis.drain-time` - The time in seconds to wait before draining connections (default: 5)
 
 
 ## License

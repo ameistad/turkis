@@ -10,6 +10,8 @@ import (
 	"github.com/ameistad/turkis/internal/config"
 )
 
+// TODO: use golang docker client library instead of exec.Command.
+
 // DeployApp builds the Docker image, runs a new container (with volumes), checks its health,
 // stops any old containers, and prunes extras.
 func DeployApp(appConfig *config.AppConfig) error {
