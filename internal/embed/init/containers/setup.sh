@@ -71,9 +71,16 @@ echo "Webroot directory created with proper permissions."
 
 # Create initial dummy certificate to help HAProxy start
 echo "Creating initial dummy certificate..."
-# Create a combined PEM file directly (cert+key in one file)
-openssl req -x509 -newkey rsa:4096 -days 365 -nodes -keyout cert-storage/default.pem -out cert-storage/default.pem -subj "/CN=localhost"
+openssl genrsa -out cert-storage/default.key 2048
+openssl req -new -key cert-storage/default.key -x509 -days 3650 -out cert-storage/default.crt -subj "/CN=localhost"
+cat cert-storage/default.crt cert-storage/default.key > cert-storage/default.pem
 chmod 644 cert-storage/default.pem
 echo "Initial certificate created at cert-storage/default.pem"
+# Verify the certificate was created properly
+if [ -s cert-storage/default.pem ]; then
+  echo "Certificate verification: PEM file exists and has content"
+else
+  echo "WARNING: PEM file is empty or not created correctly!"
+fi
 
 echo "Setup complete. You can now run 'docker compose up -d' to start the containers."

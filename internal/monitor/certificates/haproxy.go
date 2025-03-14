@@ -46,9 +46,8 @@ func (h *HAProxyNotifier) NotifyCertChange(domain string) error {
 			return fmt.Errorf("failed to connect to HAProxy socket for command %d: %w", i+1, err)
 		}
 
-		// Set timeout and ensure connection is closed
+		// Set timeout
 		conn.SetDeadline(time.Now().Add(5 * time.Second))
-		defer conn.Close() // Will be closed at end of function
 
 		// Send command to HAProxy
 		if _, err := conn.Write([]byte(cmd + "\n")); err != nil {
@@ -75,6 +74,60 @@ func (h *HAProxyNotifier) NotifyCertChange(domain string) error {
 		// For debugging - print the command and first line of response
 		responseLine := strings.Split(response, "\n")[0]
 		fmt.Printf("HAProxy command: %s, Response: %s\n", cmd, responseLine)
+	}
+
+	// Now add/update the SSL binding for the frontend if needed
+	// This is critical to ensure HAProxy serves the certificate
+
+	// First check if we already have an SSL binding on the frontend
+	sslBindConn, err := net.Dial("unix", h.socketPath)
+	if err != nil {
+		return fmt.Errorf("failed to connect to HAProxy socket for SSL bind check: %w", err)
+	}
+	sslBindConn.SetDeadline(time.Now().Add(5 * time.Second))
+	if _, err := sslBindConn.Write([]byte("show stat\n")); err != nil {
+		sslBindConn.Close()
+		return fmt.Errorf("failed to check HAProxy stats: %w", err)
+	}
+	
+	statBuf := make([]byte, 8192) // Larger buffer for stats
+	statN, err := sslBindConn.Read(statBuf)
+	sslBindConn.Close()
+	if err != nil {
+		return fmt.Errorf("failed to read HAProxy stats: %w", err)
+	}
+	stats := string(statBuf[:statN])
+	
+	// Check if we need to add an SSL binding (if frontend https-in exists but has no SSL)
+	// Look for https-in frontend in the stats
+	if strings.Contains(stats, "https-in") {
+		// Add/update the SSL binding
+		bindConn, err := net.Dial("unix", h.socketPath)
+		if err != nil {
+			return fmt.Errorf("failed to connect to HAProxy socket for bind command: %w", err)
+		}
+		bindConn.SetDeadline(time.Now().Add(5 * time.Second))
+		
+		// Set the bind command for the https-in frontend
+		bindCmd := fmt.Sprintf("set ssl cert %s %s\n", domain, pemPath)
+		if _, err := bindConn.Write([]byte(bindCmd)); err != nil {
+			bindConn.Close()
+			return fmt.Errorf("failed to update HAProxy SSL binding: %w", err)
+		}
+		
+		bindBuf := make([]byte, 4096)
+		bindN, err := bindConn.Read(bindBuf)
+		bindConn.Close()
+		if err != nil {
+			return fmt.Errorf("failed to read response for bind update: %w", err)
+		}
+		
+		bindResp := string(bindBuf[:bindN])
+		if strings.Contains(bindResp, "Unknown command") || strings.Contains(bindResp, "Error") {
+			fmt.Printf("Warning: Could not update SSL binding: %s\n", bindResp)
+		} else {
+			fmt.Printf("Updated SSL binding for %s\n", domain)
+		}
 	}
 
 	return nil
