@@ -60,7 +60,7 @@ func GenerateConfig(deployments []Deployment) (string, error) {
 
 		// Loop over each instance and add a unique server entry.
 		for i, inst := range d.Instances {
-			backends += fmt.Sprintf("\tserver app%d %s:%s check\n", i+1, inst.IP, inst.Port)
+			backends += fmt.Sprintf("\tserver app%d %s:%s check //%s\n", i+1, inst.IP, inst.Port, d.Labels.DeploymentID)
 		}
 	}
 

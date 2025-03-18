@@ -56,7 +56,7 @@ func GetDeploymentsFromRunningContainers(ctx context.Context, dockerClient *clie
 
 		ip, err := ContainerNetworkIP(container, config.DockerNetwork)
 		if err != nil {
-			log.Printf("Failed to get IP address for container %s: %v", container.ID, err)
+			log.Printf("Failed to get IP address IP for container %s: %v", container.ID, err)
 			continue
 		}
 
@@ -70,12 +70,20 @@ func GetDeploymentsFromRunningContainers(ctx context.Context, dockerClient *clie
 		instance := haproxy.DeploymentInstance{IP: ip, Port: port}
 
 		if deployment, exists := deploymentsMap[labels.AppName]; exists {
-			deployment.Instances = append(deployment.Instances, instance)
-			deploymentsMap[labels.AppName] = deployment
+
+			// Only add instances if the deployment ID matches.
+			if deployment.Labels.DeploymentID == labels.DeploymentID {
+				deployment.Instances = append(deployment.Instances, instance)
+				deploymentsMap[labels.AppName] = deployment
+			} else {
+				// Replace the deployment if the new one has a higher deployment ID.
+				if deployment.Labels.DeploymentID < labels.DeploymentID {
+					deploymentsMap[labels.AppName] = haproxy.Deployment{Labels: labels, Instances: []haproxy.DeploymentInstance{instance}}
+				}
+			}
 		} else {
 			deploymentsMap[labels.AppName] = haproxy.Deployment{Labels: labels, Instances: []haproxy.DeploymentInstance{instance}}
 		}
-
 	}
 	var deployments []haproxy.Deployment
 	for _, deployment := range deploymentsMap {

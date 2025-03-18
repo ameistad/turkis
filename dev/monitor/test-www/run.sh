@@ -1,5 +1,6 @@
 
 DEPLOYMENT_ID=$(date +%Y%m%d%H%M%S)
+DEPLOYMENT_ID_STATIC=20250318152205
 
 docker run --name my-nginx-container-two-${DEPLOYMENT_ID} \
   --network turkis-public \
