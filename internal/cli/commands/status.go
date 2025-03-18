@@ -77,11 +77,11 @@ func showAppStatus(app *config.AppConfig) error {
 	var domainLines []string
 	for _, d := range app.Domains {
 		// Canonical domain.
-		ip, err := helpers.GetARecord(d.Domain)
+		ip, err := helpers.GetARecord(d.Canonical)
 		if err != nil {
-			domainLines = append(domainLines, fmt.Sprintf("  - %s -> %s", d.Domain, color.RedString("no A record found")))
+			domainLines = append(domainLines, fmt.Sprintf("  - %s -> %s", d.Canonical, color.RedString("no A record found")))
 		} else {
-			domainLines = append(domainLines, fmt.Sprintf("  - %s -> %s", d.Domain, ip.String()))
+			domainLines = append(domainLines, fmt.Sprintf("  - %s -> %s", d.Canonical, ip.String()))
 		}
 
 		// Aliases, if any.

@@ -12,10 +12,19 @@ const (
 	// DockerNetwork is the network name to which containers are attached.
 	DockerNetwork = "turkis-public"
 
+	// DefaultKeepOldContainers is the default number of old containers to keep.
+	DefaultKeepOldContainers = 3
+
+	// DefaultHealthCheckPath is the path to which the health check endpoint is bound.
+	DefaultHealthCheckPath = "/"
+
 	// DefaultContainerPort is the port on which your container serves HTTP.
-	DefaultContainerPort = 80
+	DefaultContainerPort = "80"
 
 	ConfigFileName = "apps.yml"
+
+	// TODO: Consider adding labelPrefix
+	// LabelPreix = "turkis"
 )
 
 // Defaults to ~/.config/turkis
@@ -50,15 +59,15 @@ func DefaultConfigFilePath() (string, error) {
 // Domain represents either a simple canonical domain or a mapping that includes aliases.
 // When decoding a scalar, the value is assigned to the Domain field and Aliases will be empty.
 type Domain struct {
-	Domain  string   `yaml:"domain"`
-	Aliases []string `yaml:"aliases,omitempty"`
+	Canonical string   `yaml:"canonical"`
+	Aliases   []string `yaml:"aliases,omitempty"`
 }
 
 // UnmarshalYAML handles decoding a Domain from either a plain scalar or a mapping.
 func (d *Domain) UnmarshalYAML(value *yaml.Node) error {
 	// If the YAML node is a scalar, treat it as a simple canonical domain.
 	if value.Kind == yaml.ScalarNode {
-		d.Domain = value.Value
+		d.Canonical = value.Value
 		d.Aliases = []string{}
 		return nil
 	}
@@ -92,6 +101,7 @@ type AppConfig struct {
 	KeepOldContainers int               `yaml:"keepOldContainers,omitempty"`
 	Volumes           []string          `yaml:"volumes,omitempty"`
 	HealthCheckPath   string            `yaml:"healthCheckPath,omitempty"`
+	Port              string            `yaml:"port,omitempty"`
 }
 
 // Config represents the overall configuration.
@@ -108,12 +118,15 @@ func NormalizeConfig(conf *Config) *Config {
 
 		// Default KeepOldContainers to 3 if not set.
 		if app.KeepOldContainers == 0 {
-			normalized.Apps[i].KeepOldContainers = 3
+			normalized.Apps[i].KeepOldContainers = DefaultKeepOldContainers
 		}
 
-		// Default health check path to "/" if not set.
 		if app.HealthCheckPath == "" {
-			normalized.Apps[i].HealthCheckPath = "/"
+			normalized.Apps[i].HealthCheckPath = DefaultHealthCheckPath
+		}
+
+		if app.Port == "" {
+			normalized.Apps[i].Port = fmt.Sprintf("%d", DefaultContainerPort)
 		}
 	}
 	return &normalized

@@ -53,7 +53,7 @@ func ValidateConfigFile(conf *Config) error {
 			return fmt.Errorf("app '%s': no domains defined", app.Name)
 		}
 		for _, domain := range app.Domains {
-			if err := ValidateDomain(domain.Domain); err != nil {
+			if err := ValidateDomain(domain.Canonical); err != nil {
 				return fmt.Errorf("app '%s': %w", app.Name, err)
 			}
 			for _, alias := range domain.Aliases {

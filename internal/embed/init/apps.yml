@@ -1,7 +1,7 @@
 apps:
   - name: "turkis-test"
     domains:
-      - domain: "example.com"
+      - canonical: "example.com"
         aliases:
           - "www.example.com"
       - "test.example.com"

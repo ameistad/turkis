@@ -280,14 +280,7 @@ func (m *Manager) obtainCertificate(domain *Domain) {
 		return
 	}
 
-	// Notify HAProxy
-	m.logger.Infof("Notifying HAProxy about new certificate for %s", domain.Name)
-	err = m.notifyHAProxy(domain.Name)
-	if err != nil {
-		m.logger.Errorf("Failed to notify HAProxy about new certificate for %s: %v", domain.Name, err)
-	} else {
-		m.logger.Infof("Successfully notified HAProxy about new certificate for %s", domain.Name)
-	}
+	// TODO: Reload haproxy somehow here.
 }
 
 // renewCertificate renews an existing certificate
@@ -311,25 +304,16 @@ func (m *Manager) saveCertificate(domain string, cert *certificate.Resource) err
 		return fmt.Errorf("failed to save private key: %w", err)
 	}
 
-	// Create HAProxy PEM (concat cert and key)
-	pemPath := filepath.Join(m.config.CertDir, domain+".pem")
+	// Create combined file for HAProxy (concatenate cert and key)
+	combinedPath := filepath.Join(m.config.CertDir, domain+".crt.key")
 	pemContent := append(cert.Certificate, '\n')
 	pemContent = append(pemContent, cert.PrivateKey...)
 
-	if err := os.WriteFile(pemPath, pemContent, 0600); err != nil {
-		return fmt.Errorf("failed to save PEM file: %w", err)
+	if err := os.WriteFile(combinedPath, pemContent, 0600); err != nil {
+		return fmt.Errorf("failed to save combined certificate: %w", err)
 	}
 
 	return nil
-}
-
-// notifyHAProxy notifies HAProxy about the new certificate
-func (m *Manager) notifyHAProxy(domain string) error {
-	// Create HAProxy notifier
-	notifier := NewHAProxyNotifier(m.config.HAProxySocket, m.config.CertDir)
-
-	// Notify HAProxy about the certificate change
-	return notifier.NotifyCertChange(domain)
 }
 
 // AddDomain adds a domain to be managed for certificates

@@ -74,24 +74,14 @@ func runContainer(imageName string, appConfig *config.AppConfig) (string, string
 
 	args := []string{"run", "-d", "--name", containerName, "--restart", "unless-stopped"}
 
-	// Add all labels at once by merging maps
-	labels := make(map[string]string)
-
-	// Add identification labels
-	labels["turkis.appName"] = appConfig.Name
-	labels["turkis.deployment"] = deploymentID
-
-	// Add health check path if specified
-	if appConfig.HealthCheckPath != "" && appConfig.HealthCheckPath != "/" {
-		labels["turkis.health-check-path"] = appConfig.HealthCheckPath
+	cl := config.ContainerLabels{
+		AppName:         appConfig.Name,
+		DeploymentID:    deploymentID,
+		HealthCheckPath: appConfig.HealthCheckPath,
+		Domains:         appConfig.Domains,
 	}
-
-	// Add drain time (default 10s)
-	labels["turkis.drain-time"] = "10s"
-	labels["turkis.acme.email"] = appConfig.ACMEEmail
-
-	// Add domains and their aliases
-	addDomainLabels(labels, appConfig.Domains)
+	// Add all labels at once by merging maps
+	labels := cl.ToLabels()
 
 	// Convert all labels to docker command arguments
 	for k, v := range labels {
@@ -133,33 +123,4 @@ func runContainer(imageName string, appConfig *config.AppConfig) (string, string
 	containerID := strings.TrimSpace(string(out))
 	fmt.Printf("New container started with ID '%s' and name '%s'\n", containerID, containerName)
 	return containerID, deploymentID, nil
-}
-
-// addDomainLabels adds domain-related labels to the provided labels map
-func addDomainLabels(labels map[string]string, domains []config.Domain) {
-	// Keep track of all domains for the container
-	var allDomains []string
-
-	// Process each domain configuration
-	for i, domain := range domains {
-		// Add the canonical domain
-		domainValue := domain.Domain
-		allDomains = append(allDomains, domainValue)
-		labels[fmt.Sprintf("turkis.domain.%d", i)] = domainValue
-
-		// Add aliases that should redirect to this canonical domain
-		if len(domain.Aliases) > 0 {
-			labels[fmt.Sprintf("turkis.domain.%d.canonical", i)] = domainValue
-			for j, alias := range domain.Aliases {
-				aliasKey := fmt.Sprintf("turkis.domain.%d.alias.%d", i, j)
-				labels[aliasKey] = alias
-				allDomains = append(allDomains, alias)
-			}
-		}
-	}
-
-	// Add a comma-separated list of all domains for easy access
-	if len(allDomains) > 0 {
-		labels["turkis.domains.all"] = strings.Join(allDomains, ",")
-	}
 }

@@ -5,7 +5,7 @@ docker run -it --rm \
   --name turkis-monitor-dev \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v $(pwd):/src \
-  --network host \
+  --network turkis-public \
   -e DRY_RUN=true \
   -e TLS_STAGING=true \
   turkis-monitor-dev

@@ -92,23 +92,22 @@ docker network create turkis-public
 Edit the configuration file at `~/.config/turkis/apps.yml`:
 
 ```yaml
-tls:
-  email: "your-email@example.com"  # Email for Let's Encrypt notifications
 apps:
   - name: "example-app"
     domains:
-      - domain: "example.com"
+      - canonical: "example.com"
         aliases:
           - "www.example.com"
       - "api.example.com"
+    port: 8080 # Optional: Default is 80
     dockerfile: "/path/to/your/Dockerfile"
     buildContext: "/path/to/your/app"
     env:
       NODE_ENV: "production"
-    keepOldContainers: 3
-    volumes:
+    keepOldContainers: 5 # Optional: Default is 3
+    volumes: # Optional
       - "/host/path:/container/path"
-    healthCheckPath: "/health"
+    healthCheckPath: "/health" # Optional: Default is "/"
 ```
 
 ### Deploy Your Apps

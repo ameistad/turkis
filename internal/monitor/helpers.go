@@ -1,12 +1,15 @@
 package monitor
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"strings"
+	"log"
 
+	"github.com/ameistad/turkis/internal/config"
+	"github.com/ameistad/turkis/internal/monitor/haproxy"
 	"github.com/docker/docker/api/types"
-	"github.com/docker/go-connections/nat"
+	"github.com/docker/docker/client"
 )
 
 // Common errors
@@ -17,63 +20,66 @@ var (
 )
 
 // ContainerNetworkInfo extracts the container's IP address and exposed ports
-func ContainerNetworkInfo(container types.ContainerJSON, networkName string) (string, map[nat.Port][]nat.PortBinding, error) {
+func ContainerNetworkIP(container types.ContainerJSON, networkName string) (string, error) {
 	// Check if the network exists
 	if _, exists := container.NetworkSettings.Networks[networkName]; !exists {
-		return "", nil, fmt.Errorf("%w: %s", ErrNetworkNotFound, networkName)
+		return "", fmt.Errorf("%w: %s", ErrNetworkNotFound, networkName)
 	}
 
 	// Get IP address from the specified network
 	ipAddress := container.NetworkSettings.Networks[networkName].IPAddress
 	if ipAddress == "" {
-		return "", nil, fmt.Errorf("%w: %s", ErrNoIPAddress, networkName)
+		return "", fmt.Errorf("%w: %s", ErrNoIPAddress, networkName)
 	}
 
-	// Get all exposed ports
-	exposedPorts := container.NetworkSettings.Ports
-	if len(exposedPorts) == 0 {
-		// Not returning an error here as a container might legitimately have no ports
-		// Just include the empty map with the IP address
-	}
-
-	return ipAddress, exposedPorts, nil
+	return ipAddress, nil
 }
 
-// PrimaryPort tries to determine the main web port (80, 8080, etc.)
-func PrimaryPort(container types.ContainerJSON) (string, error) {
-	if container.NetworkSettings == nil || container.NetworkSettings.Ports == nil {
-		return "", ErrNoPortsExposed
+func GetDeploymentsFromRunningContainers(ctx context.Context, dockerClient *client.Client) ([]haproxy.Deployment, error) {
+	deploymentsMap := make(map[string]haproxy.Deployment)
+	containers, err := dockerClient.ContainerList(ctx, types.ContainerListOptions{})
+	if err != nil {
+		return nil, err
 	}
 
-	// Check if port 80 is exposed
-	if _, exists := container.NetworkSettings.Ports[nat.Port("80/tcp")]; exists {
-		return "80", nil
-	}
-
-	// Check if port 8080 is exposed
-	if _, exists := container.NetworkSettings.Ports[nat.Port("8080/tcp")]; exists {
-		return "8080", nil
-	}
-
-	// Check for any HTTP-like port (common web ports)
-	commonPorts := []string{"8000/tcp", "8888/tcp", "3000/tcp", "5000/tcp"}
-	for _, portString := range commonPorts {
-		port := nat.Port(portString)
-		if _, exists := container.NetworkSettings.Ports[port]; exists {
-			return strings.Split(portString, "/")[0], nil
+	for _, containerSummary := range containers {
+		container, err := dockerClient.ContainerInspect(ctx, containerSummary.ID)
+		if err != nil {
+			log.Printf("Failed to inspect container %s: %v", containerSummary.ID, err)
+			continue
 		}
-	}
 
-	// Check if there's a port defined in labels
-	if portLabel, exists := container.Config.Labels["turkis.port"]; exists && portLabel != "" {
-		return portLabel, nil
-	}
+		labels, err := config.ParseContainerLabels(container.Config.Labels)
+		if err != nil {
+			continue
+		}
 
-	// Default to the first exposed port if any
-	for port := range container.NetworkSettings.Ports {
-		return strings.Split(string(port), "/")[0], nil
-	}
+		ip, err := ContainerNetworkIP(container, config.DockerNetwork)
+		if err != nil {
+			log.Printf("Failed to get IP address for container %s: %v", container.ID, err)
+			continue
+		}
 
-	// No ports found
-	return "", ErrNoPortsExposed
+		var port string
+		if labels.Port != "" {
+			port = labels.Port
+		} else {
+			port = config.DefaultContainerPort
+		}
+
+		instance := haproxy.DeploymentInstance{IP: ip, Port: port}
+
+		if deployment, exists := deploymentsMap[labels.AppName]; exists {
+			deployment.Instances = append(deployment.Instances, instance)
+			deploymentsMap[labels.AppName] = deployment
+		} else {
+			deploymentsMap[labels.AppName] = haproxy.Deployment{Labels: labels, Instances: []haproxy.DeploymentInstance{instance}}
+		}
+
+	}
+	var deployments []haproxy.Deployment
+	for _, deployment := range deploymentsMap {
+		deployments = append(deployments, deployment)
+	}
+	return deployments, nil
 }
