@@ -43,6 +43,11 @@ var (
 	logger = logrus.New()
 )
 
+type ContainerEvent struct {
+	Event     events.Message
+	Container types.ContainerJSON
+}
+
 func main() {
 	// Parse command line flags
 	dryRunFlag := flag.Bool("dry-run", false, "Run in dry-run mode (don't actually send commands to HAProxy)")
@@ -79,7 +84,7 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	// Channel for Docker events
-	eventsChan := make(chan events.Message)
+	eventsChan := make(chan ContainerEvent)
 	errorsChan := make(chan error)
 
 	// Initialize certificate manager if TLS is enabled
@@ -110,67 +115,57 @@ func main() {
 			// }
 			cancel()
 			return
-		case event := <-eventsChan:
-			switch event.Action {
+		case e := <-eventsChan:
+			switch e.Event.Action {
 			case "start":
-				log.Printf("Container %s event: %s", event.Action, event.Actor.ID[:12])
+				log.Printf("Container %s event: %s", e.Event.Action, e.Event.Actor.ID[:12])
 				// Get container details
-				container, err := dockerClient.ContainerInspect(ctx, event.Actor.ID)
-				if err != nil {
-					log.Printf("failed to inspect container: %v", err)
-					continue
-				}
 
-				labels, err := config.ParseContainerLabels(container.Config.Labels)
+				labels, err := config.ParseContainerLabels(e.Container.Config.Labels)
 				if err != nil {
 					log.Printf("Error parsing container labels: %v", err)
 					continue
 				}
 
-				log.Printf("Container %s has app name '%s' and deployment ID '%s'", container.ID[:12], labels.AppName, labels.DeploymentID)
+				log.Printf("Container %s has app name '%s' and deployment ID '%s'", e.Container.ID[:12], labels.AppName, labels.DeploymentID)
 
-				// Execute blue-green deployment in a goroutine to avoid blocking the event loop
+				// Execute in a goroutine to avoid blocking the event loop
 				go func() {
 					// Create a child context for the deployment process.
 					_, cancelDeployment := context.WithCancel(ctx)
-					// Ensure that deploymentCtx is cancelled when the goroutine ends.
 					defer cancelDeployment()
-					log.Printf("Starting blue-green deployment for app\n")
-					log.Printf("\n%s", labels.String())
 
-					// TODO: Implement blue-green deployment here
-					deployments, err := monitor.GetDeploymentsFromRunningContainers(ctx, dockerClient)
+					log.Printf("Starting deployment for %s\n", labels.AppName)
+
+					deployments, err := monitor.CreateDeployments(ctx, dockerClient)
 					if err != nil {
-						log.Printf("Failed to get deployments: %v", err)
+						log.Printf("Failed to create deployments: %v", err)
 						return
 					}
 
-					config, err := haproxy.GenerateConfig(deployments)
-					log.Printf("Generated HAProxy config:\n%s", config)
+					config, err := haproxy.CreateConfig(deployments)
 					if err != nil {
-						log.Printf("Blue-green deployment failed: %v", err)
-					} else {
-						// Update the deployment registry with the new deployment ID
-						deploymentRegistryLock.Lock()
-						deploymentRegistry[labels.AppName] = labels.DeploymentID
-						deploymentRegistryLock.Unlock()
-
-						log.Printf("Blue-green deployment completed for app '%s' (deployment: '%s')",
-							labels.AppName, labels.DeploymentID)
+						log.Printf("Failed to create config %v", err)
+						return
 					}
+
+					// TODO: write the config to a file
+					// TODO: reload haproxy
+
+					// Update the deployment registry with the new deployment ID
+					deploymentRegistryLock.Lock()
+					deploymentRegistry[labels.AppName] = labels.DeploymentID
+					deploymentRegistryLock.Unlock()
+
+					log.Printf("Generated HAProxy config:\n%s", config)
+					log.Printf("Deployment completed for app '%s' (deployment: '%s')",
+						labels.AppName, labels.DeploymentID)
 				}()
 
 			case "die", "stop", "kill":
-				log.Printf("Container %s event: %s", event.Action, event.Actor.ID[:12])
+				log.Printf("Container %s event: %s", e.Event.Action, e.Event.Actor.ID[:12])
 
-				// Get container details to find app name and deployment ID
-				container, err := dockerClient.ContainerInspect(ctx, event.Actor.ID)
-				if err != nil {
-					log.Printf("Failed to inspect container for removal: %v", err)
-					continue
-				}
-
-				labels, err := config.ParseContainerLabels(container.Config.Labels)
+				labels, err := config.ParseContainerLabels(e.Container.Config.Labels)
 				if err != nil {
 					log.Printf("Error parsing container labels: %v", err)
 					continue
@@ -228,7 +223,7 @@ func main() {
 }
 
 // listenForDockerEvents sets up a listener for Docker events
-func listenForDockerEvents(ctx context.Context, dockerClient *client.Client, eventsChan chan events.Message, errorsChan chan error) {
+func listenForDockerEvents(ctx context.Context, dockerClient *client.Client, eventsChan chan ContainerEvent, errorsChan chan error) {
 	// Set up filter for container events
 	filterArgs := filters.NewArgs()
 	filterArgs.Add("type", "container")
@@ -248,15 +243,20 @@ func listenForDockerEvents(ctx context.Context, dockerClient *client.Client, eve
 		case event := <-events:
 			// Only process events for containers on our network
 			if event.Action == "start" || event.Action == "die" || event.Action == "stop" || event.Action == "kill" {
-				eventsChan <- event
 
 				container, err := dockerClient.ContainerInspect(ctx, event.Actor.ID)
 				if err != nil {
+					log.Printf("Error inspecting container %s: %v", event.Actor.ID[:12], err)
 					continue
 				}
 				eligible := isContainerEligible(container)
 
 				if eligible {
+					containerEvent := ContainerEvent{
+						Event:     event,
+						Container: container,
+					}
+					eventsChan <- containerEvent
 					// TODO: remove this else block. It is only for testing.
 				} else {
 					log.Printf("Container %s event but not eligible: %s", event.Action, event.Actor.ID[:12])

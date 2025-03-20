@@ -32,5 +32,7 @@ RUN echo '[build]' > /root/.air.toml && \
 # Working directory will be mounted from host
 WORKDIR /src
 
+LABEL turkis.ignore=true
+
 # Use air for hot reload during development
 CMD ["env" && "air", "-c", "/root/.air.toml"]

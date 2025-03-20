@@ -52,6 +52,9 @@ func InitCmd() *cobra.Command {
 	return cmd
 }
 
+// TODO: move apps.yml to templates to make it more cohesive with the rest of the code.
+// templates are dynamic files
+// init are static files
 func copyTemplates(dst string) error {
 	fmt.Printf("Copying templates to %s\n", dst)
 	// Create the destination directory if it doesn't exist

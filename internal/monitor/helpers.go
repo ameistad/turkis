@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 
@@ -12,30 +11,23 @@ import (
 	"github.com/docker/docker/client"
 )
 
-// Common errors
-var (
-	ErrNoIPAddress     = errors.New("container has no IP address on the specified network")
-	ErrNetworkNotFound = errors.New("specified network not found")
-	ErrNoPortsExposed  = errors.New("container has no exposed ports")
-)
-
 // ContainerNetworkInfo extracts the container's IP address and exposed ports
 func ContainerNetworkIP(container types.ContainerJSON, networkName string) (string, error) {
 	// Check if the network exists
 	if _, exists := container.NetworkSettings.Networks[networkName]; !exists {
-		return "", fmt.Errorf("%w: %s", ErrNetworkNotFound, networkName)
+		return "", fmt.Errorf("specified network not found: %s", networkName)
 	}
 
 	// Get IP address from the specified network
 	ipAddress := container.NetworkSettings.Networks[networkName].IPAddress
 	if ipAddress == "" {
-		return "", fmt.Errorf("%w: %s", ErrNoIPAddress, networkName)
+		return "", fmt.Errorf("container has no IP address on the specified network: %s", networkName)
 	}
 
 	return ipAddress, nil
 }
 
-func GetDeploymentsFromRunningContainers(ctx context.Context, dockerClient *client.Client) ([]haproxy.Deployment, error) {
+func CreateDeployments(ctx context.Context, dockerClient *client.Client) ([]haproxy.Deployment, error) {
 	deploymentsMap := make(map[string]haproxy.Deployment)
 	containers, err := dockerClient.ContainerList(ctx, types.ContainerListOptions{})
 	if err != nil {
@@ -70,13 +62,12 @@ func GetDeploymentsFromRunningContainers(ctx context.Context, dockerClient *clie
 		instance := haproxy.DeploymentInstance{IP: ip, Port: port}
 
 		if deployment, exists := deploymentsMap[labels.AppName]; exists {
-
-			// Only add instances if the deployment ID matches.
+			// There is a appName match, check if the deployment ID matches.
 			if deployment.Labels.DeploymentID == labels.DeploymentID {
 				deployment.Instances = append(deployment.Instances, instance)
 				deploymentsMap[labels.AppName] = deployment
 			} else {
-				// Replace the deployment if the new one has a higher deployment ID.
+				// Replace the deployment if the new one has a higher deployment ID indicating a newer deployment.
 				if deployment.Labels.DeploymentID < labels.DeploymentID {
 					deploymentsMap[labels.AppName] = haproxy.Deployment{Labels: labels, Instances: []haproxy.DeploymentInstance{instance}}
 				}

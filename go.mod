@@ -4,7 +4,6 @@ go 1.23.6
 
 require (
 	github.com/docker/docker v24.0.9+incompatible
-	github.com/docker/go-connections v0.4.0
 	github.com/fatih/color v1.18.0
 	github.com/go-acme/lego/v4 v4.22.2
 	github.com/sirupsen/logrus v1.9.3
@@ -17,6 +16,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/distribution/reference v0.5.0 // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
+	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.4 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect

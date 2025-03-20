@@ -21,35 +21,53 @@ type Deployment struct {
 // GenerateMultiConfig creates an HAProxy 3.1 config for multiple deployments.
 // It creates a single frontend that binds on port 443 and defines ACLs for each
 // deployment based on their domains, and then it defines separate backend sections.
-func GenerateConfig(deployments []Deployment) (string, error) {
-	// Build the frontend section with a common bind on 443 (with TLS certificates)
-	frontend := "frontend https-in\n\tbind *:443 ssl crt /usr/local/etc/haproxy/certs/\n"
+func CreateConfig(deployments []Deployment) (string, error) {
+	// HTTPS frontend (existing behavior)
+	httpsFrontend := "frontend https-in\n\tbind *:443 ssl crt /usr/local/etc/haproxy/certs/\n"
+	// HTTP frontend (new): will redirect all requests to HTTPS.
+	httpFrontend := "frontend http-in\n\tbind *:80\n"
+
 	for _, d := range deployments {
-		// Collect unique domains (canonical and aliases) for the given deployment.
-		domainSet := make(map[string]struct{})
+		backendName := d.Labels.AppName
+		var canonicalACLs []string
+
+		// Process each domain mapping individually.
 		for _, domain := range d.Labels.Domains {
 			if domain.Canonical != "" {
-				domainSet[domain.Canonical] = struct{}{}
-			}
-			for _, alias := range domain.Aliases {
-				if alias != "" {
-					domainSet[alias] = struct{}{}
+				canonicalKey := strings.ReplaceAll(domain.Canonical, ".", "_")
+				canonicalACLName := fmt.Sprintf("%s_%s_canonical", backendName, canonicalKey)
+
+				// Add canonical ACL to HTTPS frontend.
+				httpsFrontend += fmt.Sprintf("\tacl %s hdr(host) -i %s\n", canonicalACLName, domain.Canonical)
+				canonicalACLs = append(canonicalACLs, canonicalACLName)
+
+				// Add canonical ACL and redirect rule to HTTP frontend.
+				httpFrontend += fmt.Sprintf("\tacl %s hdr(host) -i %s\n", canonicalACLName, domain.Canonical)
+				httpFrontend += fmt.Sprintf("\thttp-request redirect code 301 location https://%s%%[req.uri] if %s\n",
+					domain.Canonical, canonicalACLName)
+
+				// For each alias, create corresponding ACLs and redirect rules.
+				for _, alias := range domain.Aliases {
+					if alias != "" {
+						aliasKey := strings.ReplaceAll(alias, ".", "_")
+						aliasACLName := fmt.Sprintf("%s_%s_alias", backendName, aliasKey)
+						// HTTPS rules for alias:
+						httpsFrontend += fmt.Sprintf("\tacl %s hdr(host) -i %s\n", aliasACLName, alias)
+						httpsFrontend += fmt.Sprintf("\thttp-request redirect code 301 location https://%s%%[req.uri] if %s\n",
+							domain.Canonical, aliasACLName)
+						// HTTP rules for alias:
+						httpFrontend += fmt.Sprintf("\tacl %s hdr(host) -i %s\n", aliasACLName, alias)
+						httpFrontend += fmt.Sprintf("\thttp-request redirect code 301 location https://%s%%[req.uri] if %s\n",
+							domain.Canonical, aliasACLName)
+					}
 				}
 			}
 		}
 
-		var domains []string
-		for dname := range domainSet {
-			domains = append(domains, dname)
+		// In HTTPS frontend, only requests matching a canonical domain are forwarded.
+		if len(canonicalACLs) > 0 {
+			httpsFrontend += fmt.Sprintf("\tuse_backend %s if %s\n", backendName, strings.Join(canonicalACLs, " or "))
 		}
-		aclHosts := strings.Join(domains, " ")
-
-		// Derive a backend name from the container's AppName.
-		backendName := d.Labels.AppName
-
-		// Append ACL rule and backend usage to the frontend section.
-		frontend += fmt.Sprintf("\tacl host_%s hdr(host) -i %s\n", backendName, aclHosts)
-		frontend += fmt.Sprintf("\tuse_backend %s if host_%s\n", backendName, backendName)
 	}
 
 	// Build backend sections for all deployments.
@@ -57,14 +75,33 @@ func GenerateConfig(deployments []Deployment) (string, error) {
 	for _, d := range deployments {
 		backendName := d.Labels.AppName
 		backends += fmt.Sprintf("\nbackend %s\n", backendName)
-
-		// Loop over each instance and add a unique server entry.
 		for i, inst := range d.Instances {
-			backends += fmt.Sprintf("\tserver app%d %s:%s check //%s\n", i+1, inst.IP, inst.Port, d.Labels.DeploymentID)
+			backends += fmt.Sprintf("\tserver app%d %s:%s check\n", i+1, inst.IP, inst.Port)
 		}
 	}
 
-	config := frontend + "\n" + backends
+	// ACME challenge
+	frontendACMEChallenge := `
+    acl is_acme_challenge path_beg /.well-known/acme-challenge/
+    use_backend acme_challenge if is_acme_challenge
+	`
+	backendACMEChallenge := `
+backend acme_challenge
+    mode http
+    # Forward to the monitor container which will handle the ACME challenge
+    http-request set-header X-Forwarded-For %[src]
+    http-request set-header X-Forwarded-Proto http
+    http-request set-header X-Forwarded-Port %[dst_port]
+    http-request set-header Host %[req.hdr(host)]
+    server monitor monitor:8080
+	`
+	backendDefalt := `
+backend default_backend
+    http-request deny deny_status 404
+	`
+
+	// Concatenate HTTPS and HTTP frontends with backends.
+	config := httpsFrontend + "\n" + httpFrontend + "\n" + frontendACMEChallenge + "\n" + backends + "\n" + backendACMEChallenge + "\n" + backendDefalt
 	return config, nil
 }
 
