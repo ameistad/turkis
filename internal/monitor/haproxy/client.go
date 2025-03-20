@@ -6,8 +6,9 @@ import (
 )
 
 const (
-	SocketPath = "/var/run/haproxy/admin.sock"
-	TCPSocket  = "127.0.0.1:9999"
+	AdminSocketPath  = "/var/run/haproxy/admin.sock"
+	MasterSocketPath = "/var/run/haproxy/master.sock"
+	TCPSocket        = "127.0.0.1:9999"
 )
 
 // Client represents an HAProxy runtime API client
@@ -15,10 +16,15 @@ type Client struct {
 	socketPath string
 }
 
-// NewClient creates a new HAProxy client
-func NewClient() *Client {
+func NewAdminClient() *Client {
 	return &Client{
-		socketPath: SocketPath,
+		socketPath: AdminSocketPath,
+	}
+}
+
+func NewMasterClient() *Client {
+	return &Client{
+		socketPath: MasterSocketPath,
 	}
 }
 

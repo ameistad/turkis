@@ -14,7 +14,7 @@ func ValidateCmd() *cobra.Command {
 		Short:        "Validate the config file",
 		SilenceUsage: true, // Don't show usage on error
 		RunE: func(cmd *cobra.Command, args []string) error {
-			confFilePath, err := config.DefaultConfigFilePath()
+			confFilePath, err := config.ConfigFilePath()
 			if err != nil {
 				return fmt.Errorf("couldn't determine config file path: %w", err)
 			}

@@ -12,7 +12,7 @@ func ListAppsCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List all apps from config",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			confFilePath, err := config.DefaultConfigFilePath()
+			confFilePath, err := config.ConfigFilePath()
 			if err != nil {
 				return err
 			}

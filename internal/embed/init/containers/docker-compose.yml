@@ -9,9 +9,8 @@ services:
     volumes:
       - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
       - ./cert-storage:/usr/local/etc/haproxy/certs:rw
-      - ./webroot-storage:/var/www/lego:rw
-      - ./haproxy-socket:/var/run/haproxy:rw
-      - ./haproxy-maps:/etc/haproxy/maps:rw
+      - webroot-storage:/var/www/lego:rw
+      - haproxy-socket:/var/run/haproxy:rw
     # Add user root to ensure proper socket permissions
     user: root
     networks:
@@ -26,15 +25,13 @@ services:
     group_add:
       - "${DOCKER_GID:-999}"  # Default to 999 if not set
     volumes:
-      - ./config:/config
-      - ./haproxy-socket:/var/run/haproxy:rw
       - ./cert-storage:/usr/local/etc/haproxy/certs:rw
-      - ./webroot-storage:/var/www/lego:rw
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - webroot-storage:/var/www/lego:rw
+      - haproxy-socket:/var/run/haproxy:rw
     ports:
       - "127.0.0.1:8080:80"
     environment:
-      - TURKIS_CONFIG_PATH=/config
       # Set to true to use staging server for testing (for Let's Encrypt)
       - LEGO_STAGING=${LEGO_STAGING:-false}
     # Set user to root to ensure proper permissions for certificate directories
@@ -48,3 +45,7 @@ networks:
   turkis-network:
     name: turkis-public
     external: true
+
+volumes:
+  webroot-storage:
+  haproxy-socket:

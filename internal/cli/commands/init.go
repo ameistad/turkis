@@ -20,7 +20,7 @@ func InitCmd() *cobra.Command {
 		Short: "Initialize configuration files and prepare HAProxy for production",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Get the default config directory.
-			configDir, err := config.DefaultConfigDirPath()
+			configDir, err := config.ConfigDirPath()
 			if err != nil {
 				return fmt.Errorf("failed to determine config directory: %w", err)
 			}
@@ -121,15 +121,15 @@ func updateConfig() error {
 	// }
 
 	// Get the full path to apps.yml.
-	configFile, err := config.DefaultConfigFilePath()
+	configFilePath, err := config.ConfigFilePath()
 	if err != nil {
 		return fmt.Errorf("failed to determine config file path: %w", err)
 	}
 
-	fmt.Printf("Updating configuration file: %s\n", configFile)
-	data, err := os.ReadFile(configFile)
+	fmt.Printf("Updating configuration file: %s\n", configFilePath)
+	data, err := os.ReadFile(configFilePath)
 	if err != nil {
-		return fmt.Errorf("failed to read config file '%s': %w", configFile, err)
+		return fmt.Errorf("failed to read config file '%s': %w", configFilePath, err)
 	}
 
 	// Use text/template instead of string replacement
@@ -142,20 +142,22 @@ func updateConfig() error {
 	var buf bytes.Buffer
 
 	// Execute template with data
-	templateData := struct {
-		ConfigDirPath string
-	}{}
-	configDirPath, err := config.DefaultConfigDirPath()
+
+	configDirPath, err := config.ConfigDirPath()
 	if err != nil {
 		return fmt.Errorf("failed to write updated config file: %w", err)
 	}
-	templateData.ConfigDirPath = configDirPath
+	templateData := struct {
+		ConfigDirPath string
+	}{
+		ConfigDirPath: configDirPath,
+	}
 
 	if err := tmpl.Execute(&buf, templateData); err != nil {
 		return fmt.Errorf("failed to execute template: %w", err)
 	}
 
-	if err := os.WriteFile(configFile, buf.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(configFilePath, buf.Bytes(), 0644); err != nil {
 		return fmt.Errorf("failed to write updated config file: %w", err)
 	}
 

@@ -29,7 +29,7 @@ const (
 
 // Defaults to ~/.config/turkis
 // If TURKIS_CONFIG_PATH is set, it will use that instead.
-func DefaultConfigDirPath() (string, error) {
+func ConfigDirPath() (string, error) {
 	// First check if TURKIS_CONFIG_PATH is set.
 	if envPath, ok := os.LookupEnv("TURKIS_CONFIG_PATH"); ok && envPath != "" {
 		// Validate that the path exists and is a directory.
@@ -47,13 +47,21 @@ func DefaultConfigDirPath() (string, error) {
 	return filepath.Join(home, ".config", "turkis"), nil
 }
 
-// DefaultConfigFilePath returns "~/.config/turkis/apps.yml".
-func DefaultConfigFilePath() (string, error) {
-	configDirPath, err := DefaultConfigDirPath()
+// ConfigFilePath returns "~/.config/turkis/apps.yml".
+func ConfigFilePath() (string, error) {
+	configDirPath, err := ConfigDirPath()
 	if err != nil {
 		return "", err
 	}
 	return filepath.Join(configDirPath, ConfigFileName), nil
+}
+
+func ConfigContainersPath() (string, error) {
+	configDirPath, err := ConfigDirPath()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(configDirPath, "containers"), nil
 }
 
 // Domain represents either a simple canonical domain or a mapping that includes aliases.

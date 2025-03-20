@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"sync"
 	"syscall"
 	"time"
 
@@ -34,14 +33,7 @@ const (
 	CertRefreshInterval = 12 * time.Hour
 )
 
-var (
-	// Track the latest known deployment ID for each app
-	deploymentRegistry     = make(map[string]string) // app name -> deployment ID
-	deploymentRegistryLock sync.RWMutex
-
-	// Logger for certificate manager
-	logger = logrus.New()
-)
+var logger = logrus.New()
 
 type ContainerEvent struct {
 	Event     events.Message
@@ -74,7 +66,7 @@ func main() {
 	}
 	defer dockerClient.Close()
 
-	// haproxyClient := haproxy.NewClient()
+	haproxyClient := haproxy.NewMasterClient()
 
 	// Set up signal handling for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -143,21 +135,28 @@ func main() {
 						return
 					}
 
-					config, err := haproxy.CreateConfig(deployments)
+					buf, err := haproxy.CreateConfig(deployments)
 					if err != nil {
 						log.Printf("Failed to create config %v", err)
 						return
 					}
 
-					// TODO: write the config to a file
-					// TODO: reload haproxy
+					configDirPath, err := config.ConfigDirPath()
+					if err != nil {
+						log.Printf("Failed to determine config directory path: %v", err)
+						return
+					}
 
-					// Update the deployment registry with the new deployment ID
-					deploymentRegistryLock.Lock()
-					deploymentRegistry[labels.AppName] = labels.DeploymentID
-					deploymentRegistryLock.Unlock()
+					if !dryRun {
+						if err := os.WriteFile(configDirPath, buf.Bytes(), 0644); err != nil {
+							log.Printf("Failed to write updated config file: %v", err)
+							return
+						}
+						haproxyClient.SendCommand("reload")
+					} else {
+						log.Printf("Generated HAProxy config would have been written to %s:\n%s", configDirPath, buf.String())
+					}
 
-					log.Printf("Generated HAProxy config:\n%s", config)
 					log.Printf("Deployment completed for app '%s' (deployment: '%s')",
 						labels.AppName, labels.DeploymentID)
 				}()

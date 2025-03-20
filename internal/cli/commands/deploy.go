@@ -39,7 +39,7 @@ func DeployAllCmd() *cobra.Command {
 		Long:  `Deploy all applications defined in the configuration file.`,
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			configFilePath, err := config.DefaultConfigFilePath()
+			configFilePath, err := config.ConfigFilePath()
 			if err != nil {
 				return err
 			}

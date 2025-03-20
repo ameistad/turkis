@@ -3,7 +3,7 @@ package config
 import "fmt"
 
 func AppConfigByName(appName string) (*AppConfig, error) {
-	configFilePath, err := DefaultConfigFilePath()
+	configFilePath, err := ConfigFilePath()
 	if err != nil {
 		return nil, err
 	}
