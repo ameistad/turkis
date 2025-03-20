@@ -152,6 +152,7 @@ func main() {
 							log.Printf("Failed to write updated config file: %v", err)
 							return
 						}
+						log.Printf("Sending reload command to haproxy...")
 						haproxyClient.SendCommand("reload")
 					} else {
 						log.Printf("Generated HAProxy config would have been written to %s:\n%s", configDirPath, buf.String())

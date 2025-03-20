@@ -134,7 +134,7 @@ func NormalizeConfig(conf *Config) *Config {
 		}
 
 		if app.Port == "" {
-			normalized.Apps[i].Port = fmt.Sprintf("%d", DefaultContainerPort)
+			normalized.Apps[i].Port = DefaultContainerPort
 		}
 	}
 	return &normalized

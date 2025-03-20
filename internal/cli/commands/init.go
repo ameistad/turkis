@@ -13,29 +13,26 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewInitCmd creates a new init command
 func InitCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize configuration files and prepare HAProxy for production",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Get the default config directory.
 			configDir, err := config.ConfigDirPath()
 			if err != nil {
 				return fmt.Errorf("failed to determine config directory: %w", err)
 			}
 
-			// Check if directory already exists
 			if _, err := os.Stat(configDir); err == nil {
 				fmt.Println("Warning: Configuration directory already exists. Files may be overwritten.")
 			}
 
-			if err := copyTemplates(configDir); err != nil {
+			if err := copyConfigFiles(configDir); err != nil {
 				return err
 			}
 
 			// Prompt the user for email and update apps.yml.
-			if err := updateConfig(); err != nil {
+			if err := copyConfigTemplateFiles(); err != nil {
 				return err
 			}
 
@@ -52,11 +49,8 @@ func InitCmd() *cobra.Command {
 	return cmd
 }
 
-// TODO: move apps.yml to templates to make it more cohesive with the rest of the code.
-// templates are dynamic files
-// init are static files
-func copyTemplates(dst string) error {
-	fmt.Printf("Copying templates to %s\n", dst)
+func copyConfigFiles(dst string) error {
+	fmt.Printf("Copying config files to %s\n", dst)
 	// Create the destination directory if it doesn't exist
 	if err := os.MkdirAll(dst, 0755); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
@@ -99,8 +93,7 @@ func copyTemplates(dst string) error {
 	})
 }
 
-// promptForEmailAndUpdateConfig prompts the user for an email and replaces the email in the config file
-func updateConfig() error {
+func copyConfigTemplateFiles() error {
 	// Prompt for email with validation
 	// var email string
 	// for {
@@ -120,47 +113,70 @@ func updateConfig() error {
 	// 	break
 	// }
 
+	configDirPath, err := config.ConfigDirPath()
+	if err != nil {
+		return fmt.Errorf("failed to write updated config file: %w", err)
+	}
+	configFileTemplateData := struct {
+		ConfigDirPath string
+	}{
+		ConfigDirPath: configDirPath,
+	}
+	configFile, err := renderTemplate(fmt.Sprintf("templates/%s", config.ConfigFileName), configFileTemplateData)
+	if err != nil {
+		return fmt.Errorf("failed to build template: %w", err)
+	}
+
+	haproxyConfigTemplateData := struct {
+		HTTPFrontend  string
+		HTTPSFrontend string
+		Backends      string
+	}{
+		HTTPFrontend:  "",
+		HTTPSFrontend: "",
+		Backends:      "",
+	}
+	haproxyConfigFile, err := renderTemplate("templates/haproxy.cfg", haproxyConfigTemplateData)
+	if err != nil {
+		return fmt.Errorf("failed to build HAProxy template: %w", err)
+	}
+
 	// Get the full path to apps.yml.
 	configFilePath, err := config.ConfigFilePath()
 	if err != nil {
 		return fmt.Errorf("failed to determine config file path: %w", err)
 	}
 
-	fmt.Printf("Updating configuration file: %s\n", configFilePath)
-	data, err := os.ReadFile(configFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to read config file '%s': %w", configFilePath, err)
-	}
-
-	// Use text/template instead of string replacement
-	tmpl, err := template.New("config").Parse(string(data))
-	if err != nil {
-		return fmt.Errorf("failed to parse template: %w", err)
-	}
-
-	// Create a buffer to store the output
-	var buf bytes.Buffer
-
-	// Execute template with data
-
-	configDirPath, err := config.ConfigDirPath()
-	if err != nil {
+	if err := os.WriteFile(configFilePath, configFile.Bytes(), 0644); err != nil {
 		return fmt.Errorf("failed to write updated config file: %w", err)
 	}
-	templateData := struct {
-		ConfigDirPath string
-	}{
-		ConfigDirPath: configDirPath,
+
+	configContainersPath, err := config.ConfigContainersPath()
+	if err != nil {
+		return fmt.Errorf("failed to determine config containers path: %w", err)
+	}
+
+	if err := os.WriteFile(configContainersPath, haproxyConfigFile.Bytes(), 0644); err != nil {
+		return fmt.Errorf("failed to write updated haproxy config file: %w", err)
+	}
+
+	return nil
+}
+
+func renderTemplate(templateFilePath string, templateData any) (bytes.Buffer, error) {
+	var buf bytes.Buffer
+	file, err := embed.TemplatesFS.ReadFile(templateFilePath)
+	if err != nil {
+		return buf, fmt.Errorf("failed to read embedded file: %w", err)
+	}
+
+	tmpl, err := template.New(templateFilePath).Parse(string(file))
+	if err != nil {
+		return buf, fmt.Errorf("failed to parse template: %w", err)
 	}
 
 	if err := tmpl.Execute(&buf, templateData); err != nil {
-		return fmt.Errorf("failed to execute template: %w", err)
+		return buf, fmt.Errorf("failed to execute template: %w", err)
 	}
-
-	if err := os.WriteFile(configFilePath, buf.Bytes(), 0644); err != nil {
-		return fmt.Errorf("failed to write updated config file: %w", err)
-	}
-
-	fmt.Println("Configuration file updated successfully")
-	return nil
+	return buf, nil
 }
