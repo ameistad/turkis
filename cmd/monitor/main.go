@@ -66,8 +66,6 @@ func main() {
 	}
 	defer dockerClient.Close()
 
-	haproxyClient := haproxy.NewMasterClient()
-
 	// Set up signal handling for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -152,8 +150,23 @@ func main() {
 							log.Printf("Failed to write updated config file: %v", err)
 							return
 						}
-						log.Printf("Sending reload command to haproxy...")
-						haproxyClient.SendCommand("reload")
+						log.Printf("Sending SIGUSR2 command to haproxy...")
+						haproxyID, err := getHaproxyContainerID(ctx, dockerClient)
+						if err != nil {
+							log.Fatalf("Error locating HAProxy container: %v", err)
+						}
+
+						err = dockerClient.ContainerKill(ctx, haproxyID, "SIGUSR2")
+						if err != nil {
+							log.Printf("Failed to send SIGUSR2: %v", err)
+						} else {
+							log.Println("Sent SIGUSR2 to HAProxy")
+						}
+						if err != nil {
+							log.Printf("Failed to send SIGUSR2 to HAProxy: %v", err)
+						} else {
+							log.Println("Sent SIGUSR2 to HAProxy")
+						}
 					} else {
 						log.Printf("Generated HAProxy config would have been written to %s:\n%s", configDirPath, buf.String())
 					}
@@ -295,4 +308,18 @@ func isOnNetworkCheck(container types.ContainerJSON, networkName string) bool {
 		}
 	}
 	return false
+}
+
+func getHaproxyContainerID(ctx context.Context, dockerClient *client.Client) (string, error) {
+	filterArgs := filters.NewArgs()
+	filterArgs.Add("label", "com.docker.compose.service=haproxy")
+	containers, err := dockerClient.ContainerList(ctx, types.ContainerListOptions{Filters: filterArgs})
+	if err != nil {
+		return "", fmt.Errorf("failed to list containers: %w", err)
+	}
+	if len(containers) == 0 {
+		return "", fmt.Errorf("haproxy container not found")
+	}
+	// If there can be multiple, pick the first or add additional checks.
+	return containers[0].ID, nil
 }
