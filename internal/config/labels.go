@@ -36,6 +36,7 @@ type ContainerLabels struct {
 	Domains         []Domain
 }
 
+// Parse from docker labels to ContainerLabels struct.
 func ParseContainerLabels(labels map[string]string) (*ContainerLabels, error) {
 	cl := &ContainerLabels{
 		AppName:      labels[LabelAppName],

@@ -67,11 +67,11 @@ func ConfigContainersPath() (string, error) {
 }
 
 func HAProxyConfigFilePath() (string, error) {
-	configDirPath, err := ConfigDirPath()
+	containersPath, err := ConfigContainersPath()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(configDirPath, HAProxyConfigFileName), nil
+	return filepath.Join(containersPath, HAProxyConfigFileName), nil
 }
 
 // Domain represents either a simple canonical domain or a mapping that includes aliases.

@@ -11,6 +11,8 @@ services:
       - ./cert-storage:/usr/local/etc/haproxy/certs:rw
       - webroot-storage:/var/www/lego:rw
       - haproxy-socket:/var/run/haproxy:rw
+      - ./entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
     # Add user root to ensure proper socket permissions
     user: root
     networks:

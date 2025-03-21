@@ -69,14 +69,19 @@ func buildImage(dockerfile, buildContext, imageName string, buildArgs map[string
 }
 
 func runContainer(imageName string, appConfig *config.AppConfig) (string, string, error) {
+	// deploymentID doesn't need to be a timestamp, but it needs to be incremented from the previous deployment.
 	deploymentID := time.Now().Format("20060102150405")
 	containerName := fmt.Sprintf("%s-turkis-%s", appConfig.Name, deploymentID)
 
 	args := []string{"run", "-d", "--name", containerName, "--restart", "unless-stopped"}
 
+	// Convert AppConfig to ContainerLabels
 	cl := config.ContainerLabels{
 		AppName:         appConfig.Name,
 		DeploymentID:    deploymentID,
+		Ignore:          false,
+		ACMEEmail:       appConfig.ACMEEmail,
+		Port:            appConfig.Port,
 		HealthCheckPath: appConfig.HealthCheckPath,
 		Domains:         appConfig.Domains,
 	}
