@@ -23,6 +23,8 @@ const (
 
 	ConfigFileName = "apps.yml"
 
+	HAProxyConfigFileName = "haproxy.cfg"
+
 	// TODO: Consider adding labelPrefix
 	// LabelPreix = "turkis"
 )
@@ -62,6 +64,14 @@ func ConfigContainersPath() (string, error) {
 		return "", err
 	}
 	return filepath.Join(configDirPath, "containers"), nil
+}
+
+func HAProxyConfigFilePath() (string, error) {
+	configDirPath, err := ConfigDirPath()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(configDirPath, HAProxyConfigFileName), nil
 }
 
 // Domain represents either a simple canonical domain or a mapping that includes aliases.

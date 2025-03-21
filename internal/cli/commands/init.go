@@ -136,7 +136,7 @@ func copyConfigTemplateFiles() error {
 		HTTPSFrontend: "",
 		Backends:      "",
 	}
-	haproxyConfigFile, err := renderTemplate("templates/haproxy.cfg", haproxyConfigTemplateData)
+	haproxyConfigFile, err := renderTemplate(fmt.Sprintf("templates/%s", config.HAProxyConfigFileName), haproxyConfigTemplateData)
 	if err != nil {
 		return fmt.Errorf("failed to build HAProxy template: %w", err)
 	}
@@ -151,12 +151,12 @@ func copyConfigTemplateFiles() error {
 		return fmt.Errorf("failed to write updated config file: %w", err)
 	}
 
-	configContainersPath, err := config.ConfigContainersPath()
+	haproxyConfigFilePath, err := config.HAProxyConfigFilePath()
 	if err != nil {
-		return fmt.Errorf("failed to determine config containers path: %w", err)
+		return fmt.Errorf("failed to determine HAProxy config file path: %w", err)
 	}
 
-	if err := os.WriteFile(configContainersPath, haproxyConfigFile.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(haproxyConfigFilePath, haproxyConfigFile.Bytes(), 0644); err != nil {
 		return fmt.Errorf("failed to write updated haproxy config file: %w", err)
 	}
 
