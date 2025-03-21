@@ -148,7 +148,7 @@ func main() {
 					}
 
 					if !dryRun {
-						if err := os.WriteFile(configDirPath, buf.Bytes(), 0644); err != nil {
+						if err := os.WriteFile("/haproxy-config/haproxy.cfg", buf.Bytes(), 0644); err != nil {
 							log.Printf("Failed to write updated config file: %v", err)
 							return
 						}

@@ -10,4 +10,4 @@ if [ ! -f "$DUMMY_CERT" ]; then
 fi
 
 echo "Starting HAProxy..."
-exec haproxy -f /usr/local/etc/haproxy/haproxy.cfg
+exec haproxy -f /usr/local/etc/haproxy/config/haproxy.cfg

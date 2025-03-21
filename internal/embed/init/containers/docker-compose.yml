@@ -7,8 +7,8 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
-      - ./cert-storage:/usr/local/etc/haproxy/certs:rw
+      - ./haproxy-config:/usr/local/etc/haproxy/config:ro
+      - ./cert-storage:/usr/local/etc/haproxy/certs:ro
       - webroot-storage:/var/www/lego:rw
       - haproxy-socket:/var/run/haproxy:rw
       - ./entrypoint.sh:/entrypoint.sh:ro
@@ -27,7 +27,9 @@ services:
     group_add:
       - "${DOCKER_GID:-999}"  # Default to 999 if not set
     volumes:
-      - ./cert-storage:/usr/local/etc/haproxy/certs:rw
+      - ./haproxy-config:/haproxy-config:rw
+      - ./cert-storage:/cert-storage:rw
+      # Enable Docker socket access for the golang docker client
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - webroot-storage:/var/www/lego:rw
       - haproxy-socket:/var/run/haproxy:rw

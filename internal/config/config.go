@@ -71,7 +71,7 @@ func HAProxyConfigFilePath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(containersPath, HAProxyConfigFileName), nil
+	return filepath.Join(containersPath, "haproxy-config", HAProxyConfigFileName), nil
 }
 
 // Domain represents either a simple canonical domain or a mapping that includes aliases.
