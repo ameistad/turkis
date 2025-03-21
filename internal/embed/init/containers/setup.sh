@@ -14,7 +14,7 @@ fi
 
 # Create .env file for docker-compose
 cat > .env << EOF
-# Docker group ID for giving the monitor container access to the Docker socket
+# Docker group ID for giving the manager container access to the Docker socket
 DOCKER_GID=$DOCKER_GID
 
 # Set to true to use staging server for testing
@@ -43,44 +43,3 @@ fi
 echo "Creating turkis-public Docker network..."
 docker network create turkis-public
 echo "Network created."
-
-# Set up certificate directories with correct permissions
-echo "Setting up certificate directories..."
-mkdir -p cert-storage/accounts
-chmod -R 777 cert-storage
-echo "Certificate directories created with proper permissions."
-
-# Set up HAProxy socket directory
-echo "Setting up HAProxy socket directory..."
-mkdir -p haproxy-socket
-chmod -R 777 haproxy-socket
-echo "Socket directory created with proper permissions."
-
-# Set up HAProxy maps directory for domain mapping
-echo "Setting up HAProxy maps directory..."
-mkdir -p haproxy-maps
-touch haproxy-maps/hosts.map haproxy-maps/redirects.map
-chmod -R 777 haproxy-maps
-echo "Maps directory created with proper permissions."
-
-# Set up webroot directory for ACME challenges
-echo "Setting up ACME challenge directory..."
-mkdir -p webroot-storage/.well-known/acme-challenge
-chmod -R 777 webroot-storage
-echo "Webroot directory created with proper permissions."
-
-# Create initial dummy certificate to help HAProxy start
-echo "Creating initial dummy certificate..."
-openssl genrsa -out cert-storage/default.key 2048
-openssl req -new -key cert-storage/default.key -x509 -days 3650 -out cert-storage/default.crt -subj "/CN=localhost"
-cat cert-storage/default.crt cert-storage/default.key > cert-storage/default.crt.key
-chmod 644 cert-storage/default.crt.key
-echo "Initial certificate created at cert-storage/default.crt.key"
-# Verify the certificate was created properly
-if [ -s cert-storage/default.crt.key ]; then
-  echo "Certificate verification: Combined certificate file exists and has content"
-else
-  echo "WARNING: Combined certificate file is empty or not created correctly!"
-fi
-
-echo "Setup complete. You can now run 'docker compose up -d' to start the containers."

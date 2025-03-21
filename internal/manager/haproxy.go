@@ -1,4 +1,4 @@
-package haproxy
+package manager
 
 import (
 	"bytes"
@@ -10,17 +10,7 @@ import (
 	"github.com/ameistad/turkis/internal/embed"
 )
 
-type DeploymentInstance struct {
-	IP   string
-	Port string
-}
-
-type Deployment struct {
-	Labels    *config.ContainerLabels
-	Instances []DeploymentInstance
-}
-
-func CreateConfig(deployments []Deployment) (bytes.Buffer, error) {
+func CreateHAProxyConfig(deployments []Deployment) (bytes.Buffer, error) {
 
 	var buf bytes.Buffer
 	var httpsFrontend string
@@ -74,7 +64,7 @@ func CreateConfig(deployments []Deployment) (bytes.Buffer, error) {
 		}
 	}
 
-	data, err := embed.TemplatesFS.ReadFile("templates/haproxy.cfg")
+	data, err := embed.TemplatesFS.ReadFile(fmt.Sprintf("templates/%s", config.HAProxyConfigFileName))
 	if err != nil {
 		return buf, fmt.Errorf("failed to read embedded file: %w", err)
 	}

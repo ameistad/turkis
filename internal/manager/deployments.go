@@ -1,4 +1,4 @@
-package monitor
+package manager
 
 import (
 	"context"
@@ -6,29 +6,22 @@ import (
 	"log"
 
 	"github.com/ameistad/turkis/internal/config"
-	"github.com/ameistad/turkis/internal/monitor/haproxy"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 )
 
-// ContainerNetworkInfo extracts the container's IP address and exposed ports
-func ContainerNetworkIP(container types.ContainerJSON, networkName string) (string, error) {
-	// Check if the network exists
-	if _, exists := container.NetworkSettings.Networks[networkName]; !exists {
-		return "", fmt.Errorf("specified network not found: %s", networkName)
-	}
-
-	// Get IP address from the specified network
-	ipAddress := container.NetworkSettings.Networks[networkName].IPAddress
-	if ipAddress == "" {
-		return "", fmt.Errorf("container has no IP address on the specified network: %s", networkName)
-	}
-
-	return ipAddress, nil
+type DeploymentInstance struct {
+	IP   string
+	Port string
 }
 
-func CreateDeployments(ctx context.Context, dockerClient *client.Client) ([]haproxy.Deployment, error) {
-	deploymentsMap := make(map[string]haproxy.Deployment)
+type Deployment struct {
+	Labels    *config.ContainerLabels
+	Instances []DeploymentInstance
+}
+
+func CreateDeployments(ctx context.Context, dockerClient *client.Client) ([]Deployment, error) {
+	deploymentsMap := make(map[string]Deployment)
 	containers, err := dockerClient.ContainerList(ctx, types.ContainerListOptions{})
 	if err != nil {
 		return nil, err
@@ -59,7 +52,7 @@ func CreateDeployments(ctx context.Context, dockerClient *client.Client) ([]hapr
 			port = config.DefaultContainerPort
 		}
 
-		instance := haproxy.DeploymentInstance{IP: ip, Port: port}
+		instance := DeploymentInstance{IP: ip, Port: port}
 
 		if deployment, exists := deploymentsMap[labels.AppName]; exists {
 			// There is a appName match, check if the deployment ID matches.
@@ -69,16 +62,32 @@ func CreateDeployments(ctx context.Context, dockerClient *client.Client) ([]hapr
 			} else {
 				// Replace the deployment if the new one has a higher deployment ID indicating a newer deployment.
 				if deployment.Labels.DeploymentID < labels.DeploymentID {
-					deploymentsMap[labels.AppName] = haproxy.Deployment{Labels: labels, Instances: []haproxy.DeploymentInstance{instance}}
+					deploymentsMap[labels.AppName] = Deployment{Labels: labels, Instances: []DeploymentInstance{instance}}
 				}
 			}
 		} else {
-			deploymentsMap[labels.AppName] = haproxy.Deployment{Labels: labels, Instances: []haproxy.DeploymentInstance{instance}}
+			deploymentsMap[labels.AppName] = Deployment{Labels: labels, Instances: []DeploymentInstance{instance}}
 		}
 	}
-	var deployments []haproxy.Deployment
+	var deployments []Deployment
 	for _, deployment := range deploymentsMap {
 		deployments = append(deployments, deployment)
 	}
 	return deployments, nil
+}
+
+// ContainerNetworkInfo extracts the container's IP address and exposed ports
+func ContainerNetworkIP(container types.ContainerJSON, networkName string) (string, error) {
+	// Check if the network exists
+	if _, exists := container.NetworkSettings.Networks[networkName]; !exists {
+		return "", fmt.Errorf("specified network not found: %s", networkName)
+	}
+
+	// Get IP address from the specified network
+	ipAddress := container.NetworkSettings.Networks[networkName].IPAddress
+	if ipAddress == "" {
+		return "", fmt.Errorf("container has no IP address on the specified network: %s", networkName)
+	}
+
+	return ipAddress, nil
 }

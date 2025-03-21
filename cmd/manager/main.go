@@ -13,8 +13,7 @@ import (
 	"time"
 
 	"github.com/ameistad/turkis/internal/config"
-	"github.com/ameistad/turkis/internal/monitor"
-	"github.com/ameistad/turkis/internal/monitor/haproxy"
+	"github.com/ameistad/turkis/internal/manager"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
@@ -92,7 +91,7 @@ func main() {
 	certRefreshTicker := time.NewTicker(CertRefreshInterval)
 	defer certRefreshTicker.Stop()
 
-	fmt.Printf("Monitor service started on network %s...\n", config.DockerNetwork)
+	fmt.Printf("Manager service started on network %s...\n", config.DockerNetwork)
 
 	// Main event loop
 	for {
@@ -127,13 +126,13 @@ func main() {
 
 					log.Printf("Starting deployment for %s\n", labels.AppName)
 
-					deployments, err := monitor.CreateDeployments(ctx, dockerClient)
+					deployments, err := manager.CreateDeployments(ctx, dockerClient)
 					if err != nil {
 						log.Printf("Failed to create deployments: %v", err)
 						return
 					}
 
-					buf, err := haproxy.CreateConfig(deployments)
+					buf, err := manager.CreateHAProxyConfig(deployments)
 					if err != nil {
 						log.Printf("Failed to create config %v", err)
 						return
@@ -311,15 +310,9 @@ func isOnNetworkCheck(container types.ContainerJSON, networkName string) bool {
 }
 
 func getHaproxyContainerID(ctx context.Context, dockerClient *client.Client) (string, error) {
-	filterArgs := filters.NewArgs()
-	filterArgs.Add("label", "com.docker.compose.service=haproxy")
-	containers, err := dockerClient.ContainerList(ctx, types.ContainerListOptions{Filters: filterArgs})
+	inspect, err := dockerClient.ContainerInspect(ctx, "turkis-haproxy")
 	if err != nil {
-		return "", fmt.Errorf("failed to list containers: %w", err)
+		return "", fmt.Errorf("failed to inspect container turkis-haproxy: %w", err)
 	}
-	if len(containers) == 0 {
-		return "", fmt.Errorf("haproxy container not found")
-	}
-	// If there can be multiple, pick the first or add additional checks.
-	return containers[0].ID, nil
+	return inspect.ID, nil
 }

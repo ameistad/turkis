@@ -13,7 +13,7 @@ RUN go mod download
 COPY . .
 
 # Build the binary
-RUN CGO_ENABLED=0 go build -o /turkis-monitor ./cmd/monitor
+RUN CGO_ENABLED=0 go build -o /turkis-manager ./cmd/manager
 
 # Use a small image for the final container
 FROM alpine:3.18
@@ -22,17 +22,17 @@ FROM alpine:3.18
 RUN apk add --no-cache ca-certificates docker-cli socat
 
 # Copy the binary from the builder stage
-COPY --from=builder /turkis-monitor /usr/local/bin/turkis-monitor
+COPY --from=builder /turkis-manager /usr/local/bin/turkis-manager
 
 # Create necessary directories
 RUN mkdir -p /etc/haproxy/certs /var/www/lego /config
 
 # Set executable permissions
-RUN chmod +x /usr/local/bin/turkis-monitor
+RUN chmod +x /usr/local/bin/turkis-manager
 
 # Run as non-root user for better security
 RUN addgroup -S turkis && adduser -S turkis -G turkis
 USER turkis
 
-# Run the monitor
-ENTRYPOINT ["/usr/local/bin/turkis-monitor"]
+# Run the manager
+ENTRYPOINT ["/usr/local/bin/turkis-manager"]

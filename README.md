@@ -54,38 +54,7 @@ turkis init
 This will:
 - Set up the directory structure at `~/.config/turkis/`
 - Create a sample configuration file
-- Set up the HAProxy and monitor containers
-
-### Docker Socket Permissions
-
-The monitor container needs access to the Docker socket to watch for container events. If you encounter permission errors:
-
-1. Run the included setup script:
-   ```bash
-   cd ~/.config/turkis/containers
-   ./setup.sh
-   ```
-
-2. This will create an `.env` file with your Docker group ID, which the monitor container will use to access the Docker socket.
-
-3. Start the containers with:
-   ```bash
-   docker compose up -d
-   ```
-
-### Docker Network
-
-Turkis requires a Docker network named `turkis-public` for communication between containers. This network is automatically created when you start the containers with `docker compose up -d`.
-
-If you're experiencing issues with container deployments, ensure the network exists:
-
-```bash
-# Check if the network exists
-docker network ls | grep turkis-public
-
-# Create the network if it doesn't exist
-docker network create turkis-public
-```
+- Set up the HAProxy and manager containers
 
 ### Configure Your Apps
 
@@ -163,26 +132,6 @@ Each app in the `apps` array can have the following properties:
 go build -o turkis ./cmd/cli
 ```
 
-### Building the Monitor
-
-```bash
-go build -o turkis-monitor ./cmd/monitor
-```
-
-### Using Docker for development
-
-Build and run the monitor for development:
-
-```bash
-docker build -t turkis-monitor-dev -f build/monitor/Dockerfile .
-docker run -it --rm \
-  --name turkis-monitor-dev \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v $(pwd):/config \
-  --network host \
-  turkis-monitor-dev
-```
-
 ## Releasing
 
 Turkis uses GitHub Actions for automated builds and releases.
@@ -209,7 +158,7 @@ Turkis uses GitHub Actions for automated builds and releases.
 
 4. GitHub Actions will automatically:
    - Run all tests
-   - Build the monitor Docker image and push it to GitHub Container Registry with version tags
+   - Build the manager Docker image and push it to GitHub Container Registry with version tags
    - Build the CLI binaries for all supported platforms
    - Create a GitHub Release with the binaries attached
 
@@ -245,10 +194,10 @@ If you need to build releases manually:
    GOOS=windows GOARCH=amd64 go build -o turkis-windows-amd64.exe ./cmd/cli
    ```
 
-2. Build and push the monitor Docker image:
+2. Build and push the manager Docker image:
    ```bash
-   docker build -t ghcr.io/ameistad/turkis-monitor:latest -f build/monitor/Dockerfile .
-   docker push ghcr.io/ameistad/turkis-monitor:latest
+   docker build -t ghcr.io/ameistad/turkis-manager:latest -f build/manager/Dockerfile .
+   docker push ghcr.io/ameistad/turkis-manager:latest
    ```
 
 

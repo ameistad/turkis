@@ -42,7 +42,7 @@ func InitCmd() *cobra.Command {
 
 			fmt.Printf("Configuration files created successfully in %s\n", configDir)
 			fmt.Println("Add your applications to apps.yml and run 'turkis deploy <app-name>' to start the reverse proxy.")
-			fmt.Println("\nBefore starting HAProxy and the monitor, run the setup script:")
+			fmt.Println("\nBefore starting HAProxy and the manager, run the setup script:")
 			fmt.Printf("cd %s/containers && ./setup.sh\n", configDir)
 			fmt.Println("\nThen start the containers with:")
 			fmt.Printf("docker compose -f %s/containers/docker-compose.yml up -d", configDir)
