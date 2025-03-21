@@ -8,7 +8,7 @@ services:
       - "443:443"
     volumes:
       - ./haproxy-config:/usr/local/etc/haproxy/config:ro
-      - ./cert-storage:/usr/local/etc/haproxy/certs:ro
+      - ./cert-storage:/usr/local/etc/haproxy/certs:rw
       - webroot-storage:/var/www/lego:rw
       - haproxy-socket:/var/run/haproxy:rw
       - ./entrypoint.sh:/entrypoint.sh:ro

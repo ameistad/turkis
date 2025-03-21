@@ -41,7 +41,7 @@ func CreateConfig(deployments []Deployment) (bytes.Buffer, error) {
 				canonicalACLs = append(canonicalACLs, canonicalACLName)
 
 				httpFrontend += fmt.Sprintf("%sacl %s hdr(host) -i %s\n", indent, canonicalACLName, domain.Canonical)
-				httpFrontend += fmt.Sprintf("%shttp-request redirect code 301 location https://%s%%[req.uri] if %s\n",
+				httpFrontend += fmt.Sprintf("%shttp-request redirect code 301 location https://%s%%[path] if %s\n",
 					indent, domain.Canonical, canonicalACLName)
 
 				for _, alias := range domain.Aliases {
@@ -50,11 +50,11 @@ func CreateConfig(deployments []Deployment) (bytes.Buffer, error) {
 						aliasACLName := fmt.Sprintf("%s_%s_alias", backendName, aliasKey)
 
 						httpsFrontend += fmt.Sprintf("%sacl %s hdr(host) -i %s\n", indent, aliasACLName, alias)
-						httpsFrontend += fmt.Sprintf("%shttp-request redirect code 301 location https://%s%%[req.uri] if %s\n",
+						httpsFrontend += fmt.Sprintf("%shttp-request redirect code 301 location https://%s%%[path] if %s\n",
 							indent, domain.Canonical, aliasACLName)
 
 						httpFrontend += fmt.Sprintf("%sacl %s hdr(host) -i %s\n", indent, aliasACLName, alias)
-						httpFrontend += fmt.Sprintf("%shttp-request redirect code 301 location https://%s%%[req.uri] if %s\n",
+						httpFrontend += fmt.Sprintf("%shttp-request redirect code 301 location https://%s%%[path] if %s\n",
 							indent, domain.Canonical, aliasACLName)
 					}
 				}

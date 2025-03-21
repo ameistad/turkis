@@ -27,7 +27,11 @@ func InitCmd() *cobra.Command {
 				fmt.Println("Warning: Configuration directory already exists. Files may be overwritten.")
 			}
 
-			if err := copyConfigFiles(configDir); err != nil {
+			var emptyDirs = []string{
+				"containers/cert-storage",
+				"containers/haproxy-config",
+			}
+			if err := copyConfigFiles(configDir, emptyDirs); err != nil {
 				return err
 			}
 
@@ -49,11 +53,19 @@ func InitCmd() *cobra.Command {
 	return cmd
 }
 
-func copyConfigFiles(dst string) error {
+func copyConfigFiles(dst string, emptyDirs []string) error {
 	fmt.Printf("Copying config files to %s\n", dst)
 	// Create the destination directory if it doesn't exist
 	if err := os.MkdirAll(dst, 0755); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	// Create any empty directories
+	for _, dir := range emptyDirs {
+		dirPath := filepath.Join(dst, dir)
+		if err := os.MkdirAll(dirPath, 0755); err != nil {
+			return fmt.Errorf("failed to create empty directory %s: %w", dirPath, err)
+		}
 	}
 
 	// Walk the embedded filesystem starting at the init directory.
